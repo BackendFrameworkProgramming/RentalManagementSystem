@@ -36,4 +36,6 @@ public class BiometricData extends BaseEntity {
     private LocalDateTime latestUpdateTime;
     @Column(name = "latest_location", length = 200)
     private String latestLocation;
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
 }

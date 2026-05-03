@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/devices")
@@ -65,7 +66,9 @@ public class DeviceController {
     // 1-8 지점 연결 (다중)
     @PatchMapping("/batch/branch")
     public ResponseEntity<CommonResponse<Map<String, Object>>> batchLinkBranch(@RequestBody Map<String, Object> body) {
-        List<Long> deviceIds = (List<Long>) body.get("deviceIds");
+        List<Long> deviceIds = ((List<?>) body.get("deviceIds")).stream()
+                .map(o -> ((Number) o).longValue())
+                .collect(Collectors.toList());
         Long branchId = ((Number) body.get("branchId")).longValue();
         return ResponseEntity.ok(deviceService.batchLinkBranch(deviceIds, branchId));
     }
@@ -80,7 +83,9 @@ public class DeviceController {
     // 1-10 지점 해제 (다중)
     @PatchMapping("/batch/branch-release")
     public ResponseEntity<CommonResponse<Map<String, Object>>> batchUnlinkBranch(@RequestBody Map<String, Object> body) {
-        List<Long> deviceIds = (List<Long>) body.get("deviceIds");
+        List<Long> deviceIds = ((List<?>) body.get("deviceIds")).stream()
+                .map(o -> ((Number) o).longValue())
+                .collect(Collectors.toList());
         return ResponseEntity.ok(deviceService.batchUnlinkBranch(deviceIds));
     }
 

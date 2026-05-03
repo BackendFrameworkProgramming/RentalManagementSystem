@@ -30,11 +30,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<CommonResponse<Void>> handleException(
             Exception e, HttpServletRequest request) {
-        // 정적 리소스 404는 로그 기록 안 함
-        if (e instanceof org.springframework.web.servlet.resource.NoResourceFoundException) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(CommonResponse.error("NOT_FOUND", "페이지를 찾을 수 없습니다."));
-        }
         log.error("Unhandled exception: {} - {}", e.getMessage(), request.getRequestURI(), e);
         saveErrorLog("INTERNAL_SERVER_ERROR", e.getMessage(), request);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
