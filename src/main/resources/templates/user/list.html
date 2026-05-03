@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('사용자 관리')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<div class="container">
+<div class="card">
+    <div class="card-header"><h2>사용자 관리</h2><button class="btn btn-primary" onclick="openModal('userModal')">+ 사용자 등록</button></div>
+    <table class="data-table">
+        <thead><tr><th>ID</th><th>사용자명</th><th>로그인ID</th><th>연락처</th><th>이메일</th><th>관리</th></tr></thead>
+        <tbody id="userTable"></tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+</div></div>
+<div class="modal-overlay" id="userModal"><div class="modal">
+    <div class="modal-header"><h3>사용자 등록</h3><button class="modal-close" onclick="closeModal('userModal')">×</button></div>
+    <div class="form-group"><label>사용자명</label><input id="uName"></div>
+    <div class="form-group"><label>로그인ID</label><input id="uLoginId"></div>
+    <div class="form-group"><label>연락처</label><input id="uContact"></div>
+    <div class="form-group"><label>이메일</label><input id="uEmail"></div>
+    <button class="btn btn-primary" onclick="createUser()">등록</button>
+</div></div>
+<script th:src="@{/js/common.js}"></script>
+<script>
+async function loadUsers(page=1) {
+    const res = await api(`/api/users?page=${page}&size=20`);
+    document.getElementById('userTable').innerHTML = (res.data||[]).map(u => `<tr>
+        <td>${u.id}</td><td>${u.userName}</td><td>${u.userLoginId||'-'}</td><td>${u.contact||'-'}</td><td>${u.email||'-'}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">삭제</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;">데이터 없음</td></tr>';
+    renderPagination(document.getElementById('pagination'), res.pagination, 'loadUsers');
+}
+async function createUser() { const res = await api('/api/users','POST',{userName:document.getElementById('uName').value,userLoginId:document.getElementById('uLoginId').value,contact:document.getElementById('uContact').value,email:document.getElementById('uEmail').value}); if(res.success){toast('등록 완료');closeModal('userModal');loadUsers();}else{toast(res.error?.message,'error');} }
+async function deleteUser(id) { if(!confirm('삭제?'))return; const res = await api(`/api/users/${id}`,'DELETE'); if(res.success){toast('삭제');loadUsers();}else{toast(res.error?.message,'error');} }
+loadUsers();
+</script>
+</body></html>

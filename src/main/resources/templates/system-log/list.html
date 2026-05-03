@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('에러로그')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header}"></div>
+<div class="page-wrapper">
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="toolbar-left"><div class="breadcrumb">시스템 에러 로그</div></div>
+        </div>
+        <div class="table-wrap">
+            <table class="grid">
+                <thead><tr><th>No</th><th>에러코드</th><th>메시지</th><th>URL</th><th>Method</th><th>IP</th><th>발생시간</th></tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <div class="pagination-bar" id="paging"></div>
+    </div>
+</div>
+<script th:src="@{/js/common.js}"></script>
+<script>
+async function load(p=1){
+    const r=await api(`/api/system-logs?page=${p}&size=20&orderField=createdAt&orderType=DESC`);
+    let i=(p-1)*20;
+    document.getElementById('tbody').innerHTML=(r.data||[]).map(l=>`<tr>
+        <td class="center">${++i}</td>
+        <td><span class="badge badge-폐기">${l.errorCode||'-'}</span></td>
+        <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis">${l.errorMessage||'-'}</td>
+        <td>${l.requestUrl||'-'}</td><td class="center">${l.requestMethod||'-'}</td><td>${l.clientIp||'-'}</td>
+        <td>${l.createdAt?new Date(l.createdAt).toLocaleString('ko-KR'):'-'}</td>
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:30px;color:#aaa">에러 로그 없음</td></tr>';
+    paginate(document.getElementById('paging'),r.pagination,'load');
+}
+load();
+</script>
+</body></html>

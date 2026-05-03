@@ -1,0 +1,7 @@
+async function api(url,method='GET',body=null){const o={method,headers:{'Content-Type':'application/json'}};if(body)o.body=JSON.stringify(body);const r=await fetch(url,o);return await r.json()}
+function toast(m,t='success'){const e=document.createElement('div');e.className=`toast toast-${t}`;e.textContent=m;document.body.appendChild(e);setTimeout(()=>e.remove(),3000)}
+const STATUS_MAP={'INCOMING':['입고','badge-입고'],'RENTAL_READY':['임대대기','badge-임대대기'],'RENTING':['임대중','badge-임대중'],'AS_RECEIVED':['AS접수','badge-AS접수'],'AS_PROGRESS':['AS진행','badge-AS진행'],'RETURNED':['반품','badge-반품'],'DISPOSED':['폐기','badge-폐기']};
+function badge(s){const[l,c]=STATUS_MAP[s]||[s,''];return `<span class="badge ${c}">${l}</span>`}
+function openDraw(id){document.getElementById(id+'Overlay').classList.add('active');document.getElementById(id).classList.add('active')}
+function closeDraw(id){document.getElementById(id+'Overlay').classList.remove('active');document.getElementById(id).classList.remove('active')}
+function paginate(container,pg,fn){if(!pg||pg.totalPages<=1){container.innerHTML='';return}let h='';for(let i=1;i<=pg.totalPages;i++)h+=`<button class="${i===pg.page?'active':''}" onclick="${fn}(${i})">${i}</button>`;container.innerHTML=h}

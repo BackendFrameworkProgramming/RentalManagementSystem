@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8"><title th:text="${title}">임대관리시스템</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div th:fragment="header">
+    <div class="top-header" th:text="${pageTitle ?: '로봇 임대관리시스템'}">로봇 임대관리시스템</div>
+    <nav class="nav">
+        <a th:href="@{/devices}" th:classappend="${menu=='devices'}?'active'">디바이스 현황</a>
+        <a th:href="@{/rentals}" th:classappend="${menu=='rentals'}?'active'">디바이스 임대 현황</a>
+        <a th:href="@{/biometric}" th:classappend="${menu=='biometric'}?'active'">디바이스 사용 생체 정보</a>
+        <a th:href="@{/as-records}" th:classappend="${menu=='as'}?'active'">디바이스 AS 관리</a>
+        <a th:href="@{/branches}" th:classappend="${menu=='branches'}?'active'">지점 관리</a>
+        <a th:href="@{/center}" th:classappend="${menu=='center'}?'active'">센터정보</a>
+        <a th:href="@{/departments}" th:classappend="${menu=='departments'}?'active'">부서/팀</a>
+        <a th:href="@{/employees}" th:classappend="${menu=='employees'}?'active'">센터 담당직원</a>
+        <a th:href="@{/system-logs}" th:classappend="${menu=='logs'}?'active'" style="margin-left:auto;">에러로그</a>
+    </nav>
+</div>
+</body>
+</html>

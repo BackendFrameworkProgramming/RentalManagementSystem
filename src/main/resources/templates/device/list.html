@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('디바이스 현황')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header}"></div>
+<div class="page-wrapper">
+    <!-- 좌측 지점 패널 -->
+    <div class="left-panel">
+        <div class="left-panel-header">지점</div>
+        <div class="left-panel-search"><input type="text" id="branchSearch" placeholder="검색" oninput="filterBranch()"></div>
+        <div class="left-panel-list" id="branchList">
+            <div class="left-panel-item active" onclick="selectBranch(null,'전체')"><span>전체</span><span class="count" id="totalCount">-</span></div>
+        </div>
+    </div>
+    <!-- 우측 메인 -->
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="breadcrumb"><span class="refresh" onclick="selectBranch(null,'전체')">⟳</span> <span id="breadcrumb">전체 > 디바이스 현황</span></div>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-delete" onclick="deleteSelected()">삭제</button>
+                <button class="btn btn-new" onclick="openDraw('createDraw')">신규</button>
+                <button class="btn btn-save" onclick="saveAll()">저장</button>
+            </div>
+        </div>
+        <div class="search-bar">
+            <select id="sf"><option value="deviceId">통합검색</option><option value="deviceId">디바이스ID</option><option value="branchName">지점명</option><option value="modelName">모델명</option></select>
+            <input type="text" id="sk" placeholder="앞 2글자 입력 후 엔터" onkeydown="if(event.key==='Enter')loadDevices(1)">
+            <button class="search-btn" onclick="loadDevices(1)">🔍</button>
+            <select id="orderField"><option value="incomingDate">입고일</option><option value="latestRentalDate">최근임대일</option><option value="deviceId">디바이스ID</option></select>
+            <select id="orderType"><option value="DESC">내림차순</option><option value="ASC">오름차순</option></select>
+            <span class="total-info">총 <b id="totalEl">0</b>건</span>
+            <span class="per-page">20 건씩 보기</span>
+        </div>
+        <div class="table-wrap">
+            <table class="grid">
+                <thead><tr>
+                    <th style="width:30px"><input type="checkbox" id="ckAll" onchange="toggleAll()"></th>
+                    <th>순번</th><th>상태</th><th>지점</th><th>지점발송일</th><th>디바이스ID</th>
+                    <th>모델명</th><th>배터리</th><th>최근 임대일</th><th>최근 AS</th><th>입고일</th><th>비고</th>
+                </tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <div class="pagination-bar" id="paging"></div>
+    </div>
+</div>
+
+<!-- AS이력 Draw -->
+<div class="draw-overlay" id="asDrawOverlay" onclick="closeDraw('asDraw')"></div>
+<div class="draw" id="asDraw">
+    <div class="draw-header"><span id="asDrawTitle">AS 이력</span><button class="draw-close" onclick="closeDraw('asDraw')">×</button></div>
+    <div class="draw-body">
+        <table class="grid"><thead><tr><th>임대자</th><th>임대일</th><th>접수자</th><th>접수일</th><th>접수내역</th><th>확인자</th><th>확인일</th><th>확인결과</th><th>수리내역</th><th>완료일</th></tr></thead>
+        <tbody id="asHistoryBody"></tbody></table>
+    </div>
+</div>
+
+<!-- 모델정보 Draw -->
+<div class="draw-overlay" id="modelDrawOverlay" onclick="closeDraw('modelDraw')"></div>
+<div class="draw" id="modelDraw">
+    <div class="draw-header"><span id="modelDrawTitle">모델 정보</span><button class="draw-close" onclick="closeDraw('modelDraw')">×</button></div>
+    <div class="draw-body">
+        <div class="form-row"><div class="form-group"><label>모델명</label><div id="mdName">-</div></div><div class="form-group" style="text-align:right"><a id="mdManual" href="#" style="display:none">메뉴얼다운로드</a></div></div>
+        <div class="form-group"><label>버전</label><div id="mdVersion">-</div></div>
+        <div class="form-group"><label>총 디바이스 수</label><div id="mdCount">-</div></div>
+    </div>
+</div>
+
+<!-- 신규등록 Draw -->
+<div class="draw-overlay" id="createDrawOverlay" onclick="closeDraw('createDraw')"></div>
+<div class="draw" id="createDraw">
+    <div class="draw-header"><span>디바이스 신규 등록</span><button class="draw-close" onclick="closeDraw('createDraw')">×</button></div>
+    <div class="draw-body">
+        <div class="form-group"><label>디바이스ID</label><input id="newDevId"></div>
+        <div class="form-group"><label>모델버전</label><select id="newMvId"></select></div>
+        <div class="form-group"><label>배터리</label><input id="newBat"></div>
+        <div class="form-group"><label>지점 (선택)</label><select id="newBrId"><option value="">미배치</option></select></div>
+        <div class="form-group"><label>비고</label><textarea id="newRemark" rows="2"></textarea></div>
+        <button class="btn btn-save" onclick="createDevice()" style="margin-top:12px;width:100%">등록</button>
+    </div>
+</div>
+
+<script th:src="@{/js/common.js}"></script>
+<script>
+let curPage=1,curBranch=null,branches=[];
+
+async function loadBranches(){
+    const s=await api('/api/devices/summary/by-branch');
+    const all=await api('/api/devices?page=1&size=1');
+    branches=s.data||[];
+    let total=all.pagination?.totalElements||0;
+    document.getElementById('totalCount').textContent=total;
+    let html='<div class="left-panel-item active" onclick="selectBranch(null,\'전체\')"><span>전체</span><span class="count">'+total+'</span></div>';
+    html+='<div class="left-panel-item" onclick="selectBranch(-1,\'미발송\')"><span>미발송</span><span class="count">-</span></div>';
+    branches.forEach(b=>html+=`<div class="left-panel-item" onclick="selectBranch(${b.branchId},'${b.branchName}')"><span>${b.branchName}</span><span class="count">${b.count}</span></div>`);
+    document.getElementById('branchList').innerHTML=html;
+    // selects
+    const mvRes=await api('/api/models');const brRes=await api('/api/branches');
+    let mvH='';(mvRes.data||[]).forEach(m=>(m.versions||[]).forEach(v=>mvH+=`<option value="${v.id}">${m.modelName} ${v.version}</option>`));
+    document.getElementById('newMvId').innerHTML=mvH;
+    let brH='<option value="">미배치</option>';(brRes.data||[]).forEach(b=>brH+=`<option value="${b.id}">${b.branchName||b.branch_name||'-'}</option>`);
+    document.getElementById('newBrId').innerHTML=brH;
+}
+
+function selectBranch(id,name){
+    curBranch=id;
+    document.getElementById('breadcrumb').textContent=(name||'전체')+' > 디바이스 현황';
+    document.querySelectorAll('.left-panel-item').forEach(el=>el.classList.remove('active'));
+    event?.target?.closest?.('.left-panel-item')?.classList.add('active');
+    loadDevices(1);
+}
+function filterBranch(){const v=document.getElementById('branchSearch').value.toLowerCase();document.querySelectorAll('.left-panel-item').forEach(el=>{el.style.display=el.textContent.toLowerCase().includes(v)?'':'none'})}
+
+async function loadDevices(page){
+    curPage=page||1;
+    const p=new URLSearchParams({searchField:document.getElementById('sf').value,searchKeyword:document.getElementById('sk').value,orderField:document.getElementById('orderField').value,orderType:document.getElementById('orderType').value,page:curPage,size:20});
+    if(document.getElementById('sf').value&&document.getElementById('sk').value)p.set('searchKeyword',document.getElementById('sk').value);
+    const res=await api('/api/devices?'+p);
+    document.getElementById('totalEl').textContent=res.pagination?.totalElements||0;
+    const tbody=document.getElementById('tbody');
+    const rows=(res.data||[]).filter(d=>{
+        if(curBranch===null)return true;
+        if(curBranch===-1)return !d.branchId;
+        return d.branchId===curBranch;
+    });
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:30px;color:#aaa">데이터가 없습니다.</td></tr>';
+    }else{
+        let i=(curPage-1)*20;
+        tbody.innerHTML=rows.map(d=>`<tr>
+            <td class="center"><input type="checkbox" class="ck" value="${d.id}"></td>
+            <td class="center">${++i}</td>
+            <td class="center">${badge(d.status)}</td>
+            <td>${d.branchName||'미발송'}</td>
+            <td>${d.branchSendDate||'-'}</td>
+            <td>${d.deviceId}</td>
+            <td><a href="#" onclick="showModel(${d.modelVersionId});return false">${d.modelName||'-'}</a></td>
+            <td>${d.battery||'-'}</td>
+            <td>${d.latestRentalDate||'-'}</td>
+            <td>${d.latestAsDate?`<a href="#" onclick="showAsHistory(${d.id},'${d.deviceId}');return false">${d.latestAsDate}</a>`:'-'}</td>
+            <td>${d.incomingDate||'-'}</td>
+            <td>${d.remark||''}</td>
+        </tr>`).join('');
+    }
+    paginate(document.getElementById('paging'),res.pagination,'loadDevices');
+}
+function toggleAll(){document.querySelectorAll('.ck').forEach(c=>c.checked=document.getElementById('ckAll').checked)}
+function getChecked(){return[...document.querySelectorAll('.ck:checked')].map(c=>Number(c.value))}
+
+async function createDevice(){
+    const b={deviceId:document.getElementById('newDevId').value,modelVersionId:Number(document.getElementById('newMvId').value),battery:document.getElementById('newBat').value,remark:document.getElementById('newRemark').value};
+    const bid=document.getElementById('newBrId').value;if(bid)b.branchId=Number(bid);
+    const r=await api('/api/devices','POST',b);
+    if(r.success){toast('등록 완료');closeDraw('createDraw');loadDevices(1);loadBranches()}else toast(r.error?.message||'실패','error');
+}
+async function deleteSelected(){const ids=getChecked();if(!ids.length){toast('선택하세요','error');return}for(const id of ids){await api(`/api/devices/${id}`,'DELETE')}toast('삭제 완료');loadDevices(curPage);loadBranches()}
+function saveAll(){toast('저장 완료')}
+
+async function showAsHistory(devId,devName){
+    document.getElementById('asDrawTitle').textContent=devName+' > AS 이력';
+    const r=await api(`/api/devices/${devId}/as-records`);
+    document.getElementById('asHistoryBody').innerHTML=(r.data||[]).map(a=>`<tr>
+        <td>${a.userName||'-'}</td><td>${a.rentalDate||'-'}</td><td>${a.receiptBy||'-'}</td><td>${a.receiptDate||'-'}</td>
+        <td>${a.receiptContent||'-'}</td><td>${a.confirmBy||'-'}</td><td>${a.confirmDate||'-'}</td>
+        <td>${a.confirmResult||'-'}</td><td>${a.repairContent||'-'}</td><td>${a.completeDate||'-'}</td>
+    </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#aaa">이력 없음</td></tr>';
+    openDraw('asDraw');
+}
+async function showModel(mvId){
+    const r=await api(`/api/models`);
+    let found=null;(r.data||[]).forEach(m=>(m.versions||[]).forEach(v=>{if(v.id===mvId)found={model:m,version:v}}));
+    if(!found){toast('모델 정보 없음','error');return}
+    document.getElementById('modelDrawTitle').textContent=found.model.modelName+' 모델 정보';
+    document.getElementById('mdName').textContent=found.model.modelName;
+    document.getElementById('mdVersion').textContent=found.version.version;
+    document.getElementById('mdCount').textContent='-';
+    const ml=document.getElementById('mdManual');
+    if(found.version.manualFileName){ml.style.display='inline';ml.href=`/api/model-versions/${found.version.id}/manual`;ml.textContent='메뉴얼다운로드'}else{ml.style.display='none'}
+    openDraw('modelDraw');
+}
+
+loadBranches();loadDevices(1);
+</script>
+</body></html>

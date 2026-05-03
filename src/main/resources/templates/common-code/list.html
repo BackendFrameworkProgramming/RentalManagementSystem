@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('공통코드 관리')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<div class="container">
+<div class="card">
+    <div class="card-header"><h2>공통코드 관리</h2><button class="btn btn-primary" onclick="openModal('codeModal')">+ 코드 등록</button></div>
+    <div class="search-bar"><select id="groupSelect" onchange="loadCodes()"><option value="">전체 그룹</option></select></div>
+    <table class="data-table">
+        <thead><tr><th>ID</th><th>그룹</th><th>코드값</th><th>코드명</th><th>순서</th><th>사용</th><th>관리</th></tr></thead>
+        <tbody id="codeTable"></tbody>
+    </table>
+</div></div>
+<div class="modal-overlay" id="codeModal"><div class="modal">
+    <div class="modal-header"><h3>코드 등록</h3><button class="modal-close" onclick="closeModal('codeModal')">×</button></div>
+    <div class="form-group"><label>그룹코드</label><input id="newGroupCode" placeholder="DEVICE_STATUS"></div>
+    <div class="form-group"><label>코드값 (영문)</label><input id="newCodeValue" placeholder="RENTING"></div>
+    <div class="form-group"><label>코드명 (한글)</label><input id="newCodeName" placeholder="임대중"></div>
+    <div class="form-group"><label>순서</label><input type="number" id="newSortOrder" value="0"></div>
+    <button class="btn btn-primary" onclick="createCode()">등록</button>
+</div></div>
+<script th:src="@{/js/common.js}"></script>
+<script>
+async function loadGroups() { const res = await api('/api/common-codes'); const sel = document.getElementById('groupSelect'); (res.data||[]).forEach(g => sel.innerHTML += `<option value="${g.groupCode}">${g.groupName||g.groupCode}</option>`); }
+async function loadCodes() {
+    const gc = document.getElementById('groupSelect').value;
+    const url = gc ? `/api/common-codes?groupCode=${gc}` : '/api/common-codes';
+    const res = await api(url);
+    document.getElementById('codeTable').innerHTML = (res.data||[]).map(c => `<tr>
+        <td>${c.id}</td><td>${c.groupCode||'-'}</td><td>${c.codeValue||'-'}</td><td>${c.codeName||c.groupName||'-'}</td>
+        <td>${c.sortOrder||'-'}</td><td>${c.useYn !== undefined ? (c.useYn ? 'Y' : 'N') : '-'}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteCode(${c.id})">삭제</button></td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;">데이터 없음</td></tr>';
+}
+async function createCode() { const res = await api('/api/common-codes','POST',{groupCode:document.getElementById('newGroupCode').value,codeValue:document.getElementById('newCodeValue').value,codeName:document.getElementById('newCodeName').value,sortOrder:Number(document.getElementById('newSortOrder').value)}); if(res.success){toast('등록 완료');closeModal('codeModal');loadGroups();loadCodes();}else{toast(res.error?.message,'error');} }
+async function deleteCode(id) { if(!confirm('삭제?'))return; const res = await api(`/api/common-codes/${id}`,'DELETE'); if(res.success){toast('삭제');loadCodes();}else{toast(res.error?.message,'error');} }
+loadGroups(); loadCodes();
+</script>
+</body></html>
