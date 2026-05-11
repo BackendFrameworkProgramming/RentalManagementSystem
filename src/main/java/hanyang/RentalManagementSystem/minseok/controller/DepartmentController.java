@@ -1,4 +1,4 @@
-package hanyang.RentalManagementSystem.member1.controller;
+package hanyang.RentalManagementSystem.minseok.controller;
 
 import hanyang.RentalManagementSystem.common.dto.*;
 import hanyang.RentalManagementSystem.member1.service.DepartmentService;
