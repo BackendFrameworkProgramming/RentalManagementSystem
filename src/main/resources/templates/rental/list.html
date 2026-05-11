@@ -1,7 +1,273 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('개발 중')}"></head>
+<head th:replace="~{fragments/layout :: head('임대 관리')}"></head>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
-<div class="page-wrapper"><div class="main-content"><div class="placeholder">🚧 이 화면은 담당 팀원이 개발 예정입니다.</div></div></div>
-</body></html>
+<div class="page-wrapper">
+    <div class="left-panel">
+        <div class="left-panel-header">지점별 임대 현황</div>
+        <div class="left-panel-list" id="branchSummaryList">
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="breadcrumb">
+                    <span class="refresh" onclick="loadRentals(1)">⟳</span>
+                    <span id="breadcrumb">전체 > 임대 관리</span>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-delete" onclick="deleteSelected()">삭제</button>
+                <button class="btn btn-new" onclick="openRentalDraw()">신규 임대 등록</button>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <select id="sf">
+                <option value="status">상태</option>
+            </select>
+            <input type="text" id="sk" placeholder="검색어 입력 후 엔터" onkeydown="if(event.key==='Enter')loadRentals(1)">
+            <button class="search-btn" onclick="loadRentals(1)">🔍</button>
+            <select id="orderField">
+                <option value="applyDate">대여일순</option>
+                <option value="id">등록순</option>
+            </select>
+            <select id="orderType">
+                <option value="DESC">내림차순</option>
+                <option value="ASC">오름차순</option>
+            </select>
+            <span class="total-info">총 <b id="totalEl">0</b>건</span>
+            <span class="per-page">20 건씩 보기</span>
+        </div>
+
+        <div class="table-wrap">
+            <table class="grid">
+                <thead><tr>
+                    <th style="width:30px"><input type="checkbox" id="ckAll" onchange="toggleAll()"></th>
+                    <th>순번</th>
+                    <th>상태</th>
+                    <th>디바이스 ID</th>
+                    <th>지점명</th>
+                    <th>사용자명</th>
+                    <th>대여 일자</th>
+                    <th>반납 일자</th>
+                    <th>관리</th>
+                </tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <div class="pagination-bar" id="paging"></div>
+    </div>
+</div>
+
+<div class="draw-overlay" id="rentalDrawOverlay" onclick="closeDraw('rentalDraw')"></div>
+<div class="draw" id="rentalDraw">
+    <div class="draw-header">
+        <span id="rentalDrawTitle">신규 임대 등록</span>
+        <button class="draw-close" onclick="closeDraw('rentalDraw')">×</button>
+    </div>
+    <div class="draw-body">
+        <input type="hidden" id="editRentalId">
+
+        <div id="newRentalFields">
+            <div class="form-group">
+                <label>지점 선택 *</label>
+                <select id="rtBranch" onchange="loadAvailableDevices()"></select>
+            </div>
+            <div class="form-group">
+                <label>가용 디바이스 *</label>
+                <select id="rtDevice">
+                    <option value="">지점을 먼저 선택하세요</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>사용자 ID (식별자) *</label>
+                <input id="rtUserId" type="number" placeholder="예: 1">
+            </div>
+        </div>
+
+        <div id="editRentalFields" style="display:none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+            <div class="form-group">
+                <label>반납 처리 일자</label>
+                <input type="date" id="rtReturnDate">
+                <small style="color: #666;">※ 반납일 입력 시 상태가 자동으로 변경됩니다.</small>
+            </div>
+        </div>
+
+        <button class="btn btn-save" onclick="saveRental()" style="margin-top:12px;width:100%">저장</button>
+    </div>
+</div>
+
+<script th:src="@{/js/common.js}"></script>
+<script>
+    let curPage = 1;
+
+    async function loadRentals(page) {
+        curPage = page || 1;
+        const p = new URLSearchParams({
+            searchField: document.getElementById('sf').value,
+            searchKeyword: document.getElementById('sk').value,
+            orderField: document.getElementById('orderField').value,
+            orderType: document.getElementById('orderType').value,
+            page: String(curPage), size: "20"
+        });
+
+        if (document.getElementById('sf').value && document.getElementById('sk').value) {
+            p.set('searchKeyword', document.getElementById('sk').value);
+        }
+
+        const res = await api('/api/rentals?' + p.toString());
+
+        let total = res.pagination?.totalElements || 0;
+        document.getElementById('totalEl').textContent = total;
+
+        const tbody = document.getElementById('tbody');
+        const rows = res.data || [];
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#aaa">등록된 임대 기록이 없습니다.</td></tr>';
+        } else {
+            let i = (curPage - 1) * 20;
+            tbody.innerHTML = rows.map(d => `<tr>
+            <td class="center"><input type="checkbox" class="ck" value="${d.id}"></td>
+            <td class="center">${++i}</td>
+            <td class="center">${badge(d.status)}</td>
+            <td class="center"><b>${d.device?.deviceId || '-'}</b></td>
+            <td>${d.branch?.branchName || '-'}</td>
+            <td>${d.user?.userName || '-'}</td>
+            <td class="center">${d.applyDate || '-'}</td>
+            <td class="center" style="color: ${d.returnDate ? 'blue' : 'inherit'}">${d.returnDate || '-'}</td>
+            <td class="center">
+                <button class="btn" style="padding: 2px 8px; font-size:12px;" onclick="openRentalDraw(${d.id})">상세/반납</button>
+            </td>
+        </tr>`).join('');
+        }
+        paginate(document.getElementById('paging'), res.pagination, 'loadRentals');
+    }
+
+    async function loadBranchSummary() {
+        const res = await api('/api/rentals/summary/by-branch');
+        const listEl = document.getElementById('branchSummaryList');
+        const summaries = res.data || [];
+
+        listEl.innerHTML = summaries.map(s => `
+        <div class="left-panel-item">
+            <span>${s.branchName}</span>
+            <span class="count">${s.count}건</span>
+        </div>
+    `).join('') || '<div class="left-panel-item">데이터 없음</div>';
+    }
+
+    function toggleAll() { document.querySelectorAll('.ck').forEach(c => c.checked = document.getElementById('ckAll').checked); }
+    function getChecked() { return [...document.querySelectorAll('.ck:checked')].map(c => Number(c.value)); }
+    function badge(status) {
+        if (status === 'RENTING') return '<span style="color:green; font-weight:bold;">임대중</span>';
+        if (status === 'RETURNED') return '<span style="color:gray;">반납완료</span>';
+        return `<span style="color:orange;">${status}</span>`;
+    }
+
+    async function openRentalDraw(id) {
+        document.getElementById('editRentalId').value = id || '';
+        document.getElementById('rentalDrawTitle').textContent = id ? '임대 상세/반납 처리' : '신규 임대 등록';
+
+        const newFields = document.getElementById('newRentalFields');
+        const editFields = document.getElementById('editRentalFields');
+
+        if (id) {
+            newFields.style.display = 'none';
+            editFields.style.display = 'block';
+            document.getElementById('rtReturnDate').value = '';
+        } else {
+            newFields.style.display = 'block';
+            editFields.style.display = 'none';
+            document.getElementById('rtUserId').value = '';
+            await loadBranchesForSelect();
+        }
+
+        openDraw('rentalDraw');
+    }
+
+    async function loadBranchesForSelect() {
+        const res = await api('/api/branches?size=100');
+        const sel = document.getElementById('rtBranch');
+        sel.innerHTML = '<option value="">지점을 선택하세요</option>' +
+            (res.data || []).map(b => `<option value="${b.id}">${b.branchName}</option>`).join('');
+    }
+
+    async function loadAvailableDevices() {
+        const branchId = document.getElementById('rtBranch').value;
+        const sel = document.getElementById('rtDevice');
+
+        if (!branchId) {
+            sel.innerHTML = '<option value="">지점을 먼저 선택하세요</option>';
+            return;
+        }
+
+        const res = await api(`/api/branches/${branchId}/available-devices`);
+        const devices = res.data || [];
+
+        if (!devices.length) {
+            sel.innerHTML = '<option value="">가용 디바이스가 없습니다</option>';
+        } else {
+            sel.innerHTML = devices.map(d => `<option value="${d.id}">${d.deviceId}</option>`).join('');
+        }
+    }
+
+    async function saveRental() {
+        const id = document.getElementById('editRentalId').value;
+
+        if (id) {
+            // 수정 (반납)
+            const returnDate = document.getElementById('rtReturnDate').value;
+            if (!returnDate) { toast('반납일자를 입력해주세요.', 'error'); return; }
+
+            const r = await api(`/api/rentals/${id}`, 'PATCH', { returnDate: returnDate });
+            if (r.success) {
+                toast('반납 처리 완료');
+                closeDraw('rentalDraw');
+                loadRentals(curPage);
+                loadBranchSummary();
+            } else {
+                toast(r.error?.message || '실패', 'error');
+            }
+        } else {
+            // 신규
+            const body = {
+                branchId: document.getElementById('rtBranch').value,
+                deviceId: document.getElementById('rtDevice').value,
+                userId: document.getElementById('rtUserId').value
+            };
+
+            if(!body.branchId || !body.deviceId || !body.userId) { toast('모든 필수 항목을 입력하세요.', 'error'); return; }
+
+            const r = await api('/api/rentals', 'POST', body);
+            if (r.success) {
+                toast('임대 등록 완료');
+                closeDraw('rentalDraw');
+                loadRentals(1);
+                loadBranchSummary();
+            } else {
+                toast(r.error?.message || '실패', 'error');
+            }
+        }
+    }
+
+    async function deleteSelected() {
+        const ids = getChecked();
+        if (!ids.length) { toast('삭제할 기록을 선택하세요', 'error'); return; }
+        if (!confirm(`선택한 ${ids.length}개 기록을 삭제하시겠습니까?`)) return;
+
+        for (const id of ids) { await api(`/api/rentals/${id}`, 'DELETE'); }
+        toast('삭제가 완료되었습니다.');
+        loadRentals(curPage);
+        loadBranchSummary();
+    }
+
+    // 초기화
+    loadRentals(1);
+    loadBranchSummary();
+</script>
+</body>
+</html>
