@@ -1,4 +1,4 @@
-package hanyang.RentalManagementSystem.member1.service;
+package hanyang.RentalManagementSystem.minseok.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
