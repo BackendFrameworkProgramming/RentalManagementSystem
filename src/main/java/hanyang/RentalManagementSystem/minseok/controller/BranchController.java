@@ -1,7 +1,7 @@
 package hanyang.RentalManagementSystem.minseok.controller;
 
 import hanyang.RentalManagementSystem.common.dto.*;
-import hanyang.RentalManagementSystem.member1.service.BranchService;
+import hanyang.RentalManagementSystem.minseok.service.BranchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
