@@ -1,7 +1,345 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('개발 중')}"></head>
+<head th:replace="~{fragments/layout :: head('디바이스 사용 생체 정보')}"></head>
 <body>
+
 <div th:replace="~{fragments/layout :: header}"></div>
-<div class="page-wrapper"><div class="main-content"><div class="placeholder">🚧 이 화면은 담당 팀원이 개발 예정입니다.</div></div></div>
-</body></html>
+
+<div class="page-wrapper">
+
+    <!-- 좌측 메뉴 -->
+    <div class="left-panel">
+        <div class="left-panel-header">모델별 현황</div>
+
+        <div class="left-panel-list">
+            <div class="left-panel-item active">
+                <span>전체</span>
+                <span class="count" id="totalCount">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 -->
+    <div class="main-content">
+
+        <!-- 상단 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="breadcrumb">
+                    디바이스 사용 생체 정보
+                </div>
+            </div>
+
+            <div class="toolbar-right">
+                <button class="btn btn-new"
+                        onclick="loadBiometricData()">
+                    새로고침
+                </button>
+            </div>
+        </div>
+
+        <!-- 검색 -->
+        <div class="search-bar">
+            <input type="text"
+                   id="searchKeyword"
+                   placeholder="사용자명 검색">
+
+            <button class="search-btn"
+                    onclick="filterData()">
+                🔍
+            </button>
+
+            <span class="total-info">
+                총 <b id="totalEl">0</b>건
+            </span>
+        </div>
+
+        <!-- 본문 -->
+        <div style="
+            display:grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap:12px;
+            height:calc(100vh - 170px);
+        ">
+
+            <!-- 생체정보 -->
+            <div class="table-wrap"
+                 style="height:100%; overflow:auto;">
+
+                <table class="grid">
+                    <thead>
+                    <tr>
+                        <th>순번</th>
+                        <th>사용자</th>
+                        <th>디바이스ID</th>
+                        <th>호흡수</th>
+                        <th>걸음수</th>
+                        <th>최근 사용일</th>
+                        <th>최근 위치</th>
+                    </tr>
+                    </thead>
+
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+
+            <!-- 우측 -->
+            <div style="
+                display:flex;
+                flex-direction:column;
+                gap:10px;
+                height:100%;
+            ">
+
+                <!-- 선택 정보 -->
+                <div class="table-wrap"
+                     style="
+        height:170px;
+        padding:14px;
+        background:#ffffff;
+        border:1px solid #d8dee8;
+        border-radius:6px;
+        box-shadow:0 1px 3px rgba(0,0,0,0.04);
+     ">
+
+                    <div style="
+        font-weight:bold;
+        margin-bottom:12px;
+        font-size:14px;
+        color:#2f3b52;
+        border-bottom:1px solid #e5e9f0;
+        padding-bottom:8px;
+    ">
+                        선택 생체정보
+                    </div>
+
+                    <div id="selectedInfo"
+                         style="
+            display:grid;
+            grid-template-columns:110px 1fr;
+            row-gap:10px;
+            column-gap:10px;
+            font-size:12px;
+            align-items:center;
+         ">
+
+                        <div style="color:#7b8794;">사용자</div>
+                        <div>-</div>
+
+                        <div style="color:#7b8794;">디바이스ID</div>
+                        <div>-</div>
+
+                        <div style="color:#7b8794;">호흡수</div>
+                        <div>-</div>
+
+                        <div style="color:#7b8794;">걸음수</div>
+                        <div>-</div>
+
+                        <div style="color:#7b8794;">최근 위치</div>
+                        <div>-</div>
+
+                    </div>
+                </div>
+
+                <!-- 응급기록 -->
+                <div class="table-wrap"
+                     style="
+                        flex:1;
+                        overflow:auto;
+                     ">
+
+                    <table class="grid">
+                        <thead>
+                        <tr>
+                            <th>응급유형</th>
+                            <th>발생시간</th>
+                            <th>조치내용</th>
+                            <th>조치결과</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="emergencyBody">
+                        <tr>
+                            <td colspan="4"
+                                style="
+                                    text-align:center;
+                                    padding:30px;
+                                    color:#999;
+                                ">
+                                생체정보를 선택하면 응급기록이 표시됩니다.
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script th:src="@{/js/common.js}"></script>
+
+<script>
+
+    let biometricList = [];
+
+    async function loadBiometricData() {
+
+        const res = await api('/api/biometric-data');
+
+        biometricList = res.data.biometricData || [];
+
+        document.getElementById('totalEl').textContent =
+            res.pagination.totalElements;
+
+        document.getElementById('totalCount').textContent =
+            res.pagination.totalElements;
+
+        renderTable(biometricList);
+    }
+
+    function renderTable(data) {
+
+        const tbody = document.getElementById('tbody');
+
+        if (!data.length) {
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7"
+                        style="
+                            text-align:center;
+                            padding:30px;
+                            color:#999;
+                        ">
+                        데이터가 없습니다.
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+        tbody.innerHTML = data.map((d, i) => `
+
+            <tr style="cursor:pointer;"
+                onclick="loadEmergency(${d.id})">
+
+                <td>${i + 1}</td>
+                <td>${d.userName || '-'}</td>
+                <td>${d.deviceId || '-'}</td>
+                <td>${d.breathPerDay || '-'}</td>
+                <td>${d.stepsPerDay || '-'}</td>
+                <td>${d.latestUseDate || '-'}</td>
+                <td>${d.latestLocation || '-'}</td>
+
+            </tr>
+
+        `).join('');
+    }
+
+    async function loadEmergency(id) {
+
+        const res =
+            await api('/api/biometric-data/' + id);
+
+        const emergencyList =
+            res.data.emergencyRecords || [];
+
+        const selected =
+            biometricList.find(b => b.id === id);
+
+        document.getElementById('selectedInfo').innerHTML = selected
+            ? `
+        <div style="color:#7b8794;">사용자</div>
+        <div style="white-space:nowrap;">
+            <b>${selected.userName || '-'}</b>
+        </div>
+
+        <div style="color:#7b8794;">디바이스ID</div>
+        <div style="white-space:nowrap;">
+            ${selected.deviceId || '-'}
+        </div>
+
+        <div style="color:#7b8794;">호흡수</div>
+        <div style="white-space:nowrap;">
+            ${selected.breathPerDay || '-'}
+        </div>
+
+        <div style="color:#7b8794;">걸음수</div>
+        <div style="white-space:nowrap;">
+            ${selected.stepsPerDay || '-'}
+        </div>
+
+        <div style="color:#7b8794;">최근 위치</div>
+        <div style="white-space:nowrap;">
+            ${selected.latestLocation || '-'}
+        </div>
+      `
+            : `
+        <div style="grid-column:1 / span 2; color:#999;">
+            선택된 생체정보가 없습니다.
+        </div>
+      `;
+
+        const body =
+            document.getElementById('emergencyBody');
+
+        if (!emergencyList.length) {
+
+            body.innerHTML = `
+        <tr>
+            <td colspan="4"
+                style="
+                    text-align:center;
+                    padding:30px;
+                    color:#999;
+                ">
+                응급기록 없음
+            </td>
+        </tr>
+    `;
+
+            return;
+        }
+
+        body.innerHTML = emergencyList.map(e => `
+
+    <tr>
+
+        <td>${e.emergencyType || '-'}</td>
+        <td>${e.emergencyRecordTime || '-'}</td>
+        <td>${e.actionContent || '-'}</td>
+        <td>${e.actionResult || '-'}</td>
+
+    </tr>
+
+`).join('');
+    }
+
+    function filterData() {
+
+        const keyword =
+            document.getElementById('searchKeyword')
+                .value
+                .toLowerCase();
+
+        const filtered =
+            biometricList.filter(d =>
+                (d.userName || '')
+                    .toLowerCase()
+                    .includes(keyword)
+            );
+
+        renderTable(filtered);
+    }
+
+    loadBiometricData();
+
+</script>
+
+</body>
+</html>
