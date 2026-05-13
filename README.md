@@ -43,7 +43,7 @@ git clone https://github.com/BackendFrameworkProgramming/RentalManagementSystem.
 |------|------|-----------|
 | 윤태웅 (PM) | 화면1 디바이스 현황 + 모델 관리 + 화면6 센터정보 + 에러로그 + 공통코드 + 사용자 + MQTT | taewoong/ |
 | 팀원1 전민석 | 화면5 지점 관리 + 화면7 부서/팀 | minseok/  |
-| 팀원2 정은혜 | 화면8 센터 담당직원 + 화면3 생체정보/응급 | member2/  |
+| 팀원2 정은혜 | 화면8 센터 담당직원 + 화면3 생체정보/응급 | Eunhye/   |
 | 팀원3 김규민 | 화면2 임대 현황 + 화면4 AS 관리 | Gyumin/   |
 
 ## 프로젝트 구조
@@ -53,7 +53,7 @@ src/main/java/hanyang/RentalManagementSystem/
   common/           <- Entity, Repository, DTO, 공통 구조 (PM)
   taewoong/         <- 디바이스, 모델, 센터, 코드, 사용자, MQTT, 에러로그
   minseok/          <- 지점, 부서/팀 (전민석)
-  member2/          <- 직원, 생체/응급 (정은혜)
+  Eunhye/          <- 직원, 생체/응급 (정은혜)
   Gyumin/          <- 임대, AS (김규민)
 
 src/main/resources/
@@ -64,7 +64,7 @@ src/main/resources/
 
 ## Git 규칙
 
-- 본인 폴더(minseok, member2, Gyumin)에서만 작업
+- 본인 폴더(minseok, Eunhye, Gyumin)에서만 작업
 - common/ 폴더 수정 금지
 - 작업 전 pull, 작업 후 commit -> pull -> push
 
