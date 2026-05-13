@@ -1,7 +1,210 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('개발 중')}"></head>
+<head th:replace="~{fragments/layout :: head('지점 관리')}"></head>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
-<div class="page-wrapper"><div class="main-content"><div class="placeholder">🚧 이 화면은 담당 팀원이 개발 예정입니다.</div></div></div>
-</body></html>
+<div class="page-wrapper">
+    <div class="main-content" style="width:100%">
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="breadcrumb">지점 관리</div>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-new" onclick="openDraw('createDraw')">신규</button>
+            </div>
+        </div>
+        <div class="search-bar">
+            <select id="sf">
+                <option value="branchName">지점명</option>
+                <option value="managerName">담당자명</option>
+            </select>
+            <input type="text" id="sk" placeholder="검색어" onkeydown="if(event.key==='Enter')loadBranches(1)">
+            <button class="search-btn" onclick="loadBranches(1)">🔍</button>
+            <span class="total-info">총 <b id="totalEl">0</b>건</span>
+        </div>
+        <div class="table-wrap">
+            <table class="grid">
+                <thead><tr>
+                    <th>순번</th><th>지점명</th><th>상태</th><th>주소</th>
+                    <th>담당자</th><th>연락처</th><th>적용일</th><th>관리</th>
+                </tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <div class="pagination-bar" id="paging"></div>
+    </div>
+</div>
+
+<!-- 신규/수정 Draw -->
+<div class="draw-overlay" id="createDrawOverlay" onclick="closeDraw('createDraw')"></div>
+<div class="draw" id="createDraw">
+    <div class="draw-header"><span id="formTitle">지점 등록</span><button class="draw-close" onclick="closeDraw('createDraw')">×</button></div>
+    <div class="draw-body">
+        <input type="hidden" id="editId">
+        <div class="form-group"><label>지점명</label><input id="f_branchName"></div>
+        <div class="form-group"><label>상태</label>
+            <select id="f_status"><option value="true">활성</option><option value="false">비활성</option></select>
+        </div>
+        <div class="form-group"><label>주소</label><input id="f_address"></div>
+        <div class="form-group"><label>상세주소</label><input id="f_addressDetail"></div>
+        <div class="form-group"><label>담당자명</label><input id="f_managerName"></div>
+        <div class="form-group"><label>연락처</label><input id="f_phone"></div>
+        <div class="form-group"><label>팩스</label><input id="f_fax"></div>
+        <button class="btn btn-save" onclick="saveBranch()" style="margin-top:12px;width:100%">저장</button>
+    </div>
+</div>
+
+<!-- 담당자 Draw -->
+<div class="draw-overlay" id="managerDrawOverlay" onclick="closeDraw('managerDraw')"></div>
+<div class="draw" id="managerDraw">
+    <div class="draw-header"><span id="managerDrawTitle">담당자 관리</span><button class="draw-close" onclick="closeDraw('managerDraw')">×</button></div>
+    <div class="draw-body">
+        <input type="hidden" id="mgrBranchId">
+        <table class="grid"><thead><tr><th>이름</th><th>연락처</th><th>이메일</th><th>구분</th><th>상태</th><th></th></tr></thead>
+        <tbody id="mgrTbody"></tbody></table>
+        <hr style="margin:16px 0">
+        <h4>담당자 추가</h4>
+        <div class="form-group"><label>이름</label><input id="m_name"></div>
+        <div class="form-group"><label>연락처</label><input id="m_contact"></div>
+        <div class="form-group"><label>이메일</label><input id="m_email"></div>
+        <div class="form-group"><label>구분</label><select id="m_type"><option value="주">주</option><option value="부">부</option></select></div>
+        <button class="btn btn-save" onclick="addManager()" style="width:100%">추가</button>
+    </div>
+</div>
+
+<script th:src="@{/js/common.js}"></script>
+<script>
+let curPage = 1;
+
+async function loadBranches(page){
+    curPage = page||1;
+    const p = new URLSearchParams({
+        searchField: document.getElementById('sf').value,
+        searchKeyword: document.getElementById('sk').value,
+        page: curPage, size: 20
+    });
+    const res = await api('/api/branches?' + p);
+    const data = res.data || [];
+    document.getElementById('totalEl').textContent = res.pagination?.totalElements || 0;
+    let html = '';
+    data.forEach((b, i) => {
+        html += `<tr>
+            <td>${(curPage-1)*20 + i + 1}</td>
+            <td>${b.branchName||'-'}</td>
+            <td>${b.status ? '<span class="badge badge-임대대기">활성</span>' : '<span class="badge badge-폐기">비활성</span>'}</td>
+            <td>${(b.address||'')+' '+(b.addressDetail||'')}</td>
+            <td>${b.managerName||'-'}</td>
+            <td>${b.phone||'-'}</td>
+            <td>${b.appliedDate||'-'}</td>
+            <td>
+                <button class="btn" onclick='editBranch(${JSON.stringify(b)})'>수정</button>
+                <button class="btn" onclick="openManagers(${b.id}, '${b.branchName}')">담당자</button>
+                <button class="btn btn-delete" onclick="deleteBranch(${b.id})">삭제</button>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('tbody').innerHTML = html || '<tr><td colspan="8" style="text-align:center;padding:20px">데이터가 없습니다</td></tr>';
+    paginate(document.getElementById('paging'), res.pagination, 'loadBranches');
+}
+
+function newBranch(){
+    document.getElementById('editId').value = '';
+    document.getElementById('formTitle').textContent = '지점 등록';
+    ['f_branchName','f_address','f_addressDetail','f_managerName','f_phone','f_fax'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f_status').value = 'true';
+    openDraw('createDraw');
+}
+
+function editBranch(b){
+    document.getElementById('editId').value = b.id;
+    document.getElementById('formTitle').textContent = '지점 수정';
+    document.getElementById('f_branchName').value = b.branchName||'';
+    document.getElementById('f_status').value = b.status ? 'true':'false';
+    document.getElementById('f_address').value = b.address||'';
+    document.getElementById('f_addressDetail').value = b.addressDetail||'';
+    document.getElementById('f_managerName').value = b.managerName||'';
+    document.getElementById('f_phone').value = b.phone||'';
+    document.getElementById('f_fax').value = b.fax||'';
+    openDraw('createDraw');
+}
+
+async function saveBranch(){
+    const id = document.getElementById('editId').value;
+    const body = {
+        branchName: document.getElementById('f_branchName').value,
+        status: document.getElementById('f_status').value === 'true',
+        address: document.getElementById('f_address').value,
+        addressDetail: document.getElementById('f_addressDetail').value,
+        managerName: document.getElementById('f_managerName').value,
+        phone: document.getElementById('f_phone').value,
+        fax: document.getElementById('f_fax').value
+    };
+    const res = id
+        ? await api(`/api/branches/${id}`, 'PATCH', body)
+        : await api('/api/branches', 'POST', body);
+    if(res.success){ toast(id?'수정됨':'등록됨'); closeDraw('createDraw'); loadBranches(curPage); }
+    else toast(res.error?.message||'실패','error');
+}
+
+async function deleteBranch(id){
+    if(!confirm('정말 삭제하시겠습니까?')) return;
+    const res = await api(`/api/branches/${id}`, 'DELETE');
+    if(res.success){ toast('삭제됨'); loadBranches(curPage); }
+    else toast(res.error?.message||'실패','error');
+}
+
+// 신규 버튼 → newBranch 호출
+document.querySelector('.btn-new').setAttribute('onclick','newBranch()');
+
+// === 담당자 ===
+async function openManagers(branchId, branchName){
+    document.getElementById('mgrBranchId').value = branchId;
+    document.getElementById('managerDrawTitle').textContent = branchName + ' 담당자';
+    await loadManagers(branchId);
+    openDraw('managerDraw');
+}
+
+async function loadManagers(branchId){
+    const res = await api(`/api/branches/${branchId}/managers?page=1&size=50`);
+    const data = res.data || [];
+    let html = '';
+    data.forEach(m => {
+        html += `<tr>
+            <td>${m.managerName||'-'}</td><td>${m.contact||'-'}</td><td>${m.email||'-'}</td>
+            <td>${m.managerType||'-'}</td>
+            <td>${m.status?'활성':'비활성'}</td>
+            <td><button class="btn btn-delete" onclick="deleteManager(${m.id}, ${branchId})">삭제</button></td>
+        </tr>`;
+    });
+    document.getElementById('mgrTbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center">담당자 없음</td></tr>';
+}
+
+async function addManager(){
+    const branchId = document.getElementById('mgrBranchId').value;
+    const body = {
+        branchId: Number(branchId),
+        managerName: document.getElementById('m_name').value,
+        contact: document.getElementById('m_contact').value,
+        email: document.getElementById('m_email').value,
+        managerType: document.getElementById('m_type').value,
+        status: true
+    };
+    const res = await api('/api/branch-managers', 'POST', body);
+    if(res.success){
+        toast('추가됨');
+        ['m_name','m_contact','m_email'].forEach(id => document.getElementById(id).value = '');
+        loadManagers(branchId);
+    } else toast(res.error?.message||'실패','error');
+}
+
+async function deleteManager(id, branchId){
+    if(!confirm('삭제하시겠습니까?')) return;
+    const res = await api(`/api/branch-managers/${id}`, 'DELETE');
+    if(res.success){ toast('삭제됨'); loadManagers(branchId); }
+    else toast(res.error?.message||'실패','error');
+}
+
+loadBranches(1);
+</script>
+</body>
+</html>
