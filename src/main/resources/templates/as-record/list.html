@@ -67,7 +67,7 @@
         <div id="newAsFields">
             <div class="form-group">
                 <label>디바이스 ID (식별자) *</label>
-                <input id="asDeviceId" type="number" placeholder="디바이스 PK 입력">
+                <input id="asDeviceId" type="text" placeholder="예: DEV-001">
             </div>
         </div>
 
@@ -128,7 +128,8 @@
         document.getElementById('totalEl').textContent = total;
 
         const tbody = document.getElementById('tbody');
-        const rows = res.data || [];
+        // ⭐ 2. 페이징 데이터이므로 .content 추가
+        const rows = res.data.content || [];
 
         if (!rows.length) {
             tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#aaa">등록된 AS 기록이 없습니다.</td></tr>';
@@ -155,6 +156,7 @@
     async function loadVendorSummary() {
         const res = await api('/api/as-records/summary/by-vendor');
         const listEl = document.getElementById('vendorSummaryList');
+        // 얘는 백엔드에서 List로 오니까 .content 안 붙임!
         const summaries = res.data || [];
 
         listEl.innerHTML = summaries.map(s => `
@@ -179,12 +181,14 @@
         const typeRes = await api('/api/as-types?size=100');
 
         const vSel = document.getElementById('asVendor');
+        // ⭐ 3. 수리업체 목록도 페이징이므로 .content 추가
         vSel.innerHTML = '<option value="">업체 선택 안함</option>' +
-            (vendorRes.data || []).map(v => `<option value="${v.id}">${v.vendorName}</option>`).join('');
+            (vendorRes.data.content || []).map(v => `<option value="${v.id}">${v.vendorName}</option>`).join('');
 
         const tSel = document.getElementById('asType');
+        // ⭐ 3. AS 유형 목록도 페이징이므로 .content 추가
         tSel.innerHTML = '<option value="">유형 선택 안함</option>' +
-            (typeRes.data || []).map(t => `<option value="${t.id}">${t.typeName}</option>`).join('');
+            (typeRes.data.content || []).map(t => `<option value="${t.id}">${t.typeName}</option>`).join('');
     }
 
     async function openAsDraw(id) {

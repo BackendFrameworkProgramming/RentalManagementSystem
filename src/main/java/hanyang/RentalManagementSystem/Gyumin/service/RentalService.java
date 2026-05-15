@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,14 +37,49 @@ public class RentalService {
         );
         List<String> validNext = allowed.getOrDefault(current, List.of());
         if (!validNext.contains(next)) {
-            throw new CustomException("INVALID_STATUS_TRANSITION",
-                    current + " → " + next + " 전이는 허용되지 않습니다.");
+            throw new CustomException("INVALID_STATUS_TRANSITION", current + " → " + next + " 전이는 허용되지 않습니다.");
         }
     }
 
+    private Map<String, Object> convertToMap(Rental rental) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", rental.getId());
+        map.put("status", rental.getStatus());
+        map.put("applyDate", rental.getApplyDate());
+        map.put("returnDate", rental.getReturnDate());
+        if (rental.getDevice() != null) {
+            map.put("device", Map.of("id", rental.getDevice().getId(), "deviceId", rental.getDevice().getDeviceId()));
+        }
+        if (rental.getBranch() != null) {
+            map.put("branch", Map.of("id", rental.getBranch().getId(), "branchName", rental.getBranch().getBranchName()));
+        }
+        if (rental.getUser() != null) {
+            map.put("user", Map.of("id", rental.getUser().getId(), "userName", rental.getUser().getUserName()));
+        }
+        return map;
+    }
+
     @Transactional(readOnly = true)
-    public Page<Rental> getRentals(CommonSearchRequest request) {
-        return rentalRepository.findAllByIsDeletedFalse(request.toPageable());
+    public Page<Map<String, Object>> getRentals(CommonSearchRequest request) {
+        return rentalRepository.findAllByIsDeletedFalse(request.toPageable()).map(this::convertToMap);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Map<String, Object>> getUserRentals(Long userId, CommonSearchRequest request) {
+        return rentalRepository.findAllByUserIdAndIsDeletedFalse(userId, request.toPageable()).map(this::convertToMap);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getAvailableDevicesByBranch(Long branchId) {
+        // [수정] 진짜 DB 로직으로 원복하되 Map으로 안전하게 반환
+        return deviceRepository.findAllByBranchIdAndIsDeletedFalse(branchId).stream()
+                .filter(device -> "RENTAL_READY".equals(device.getStatus()))
+                .map(device -> Map.<String, Object>of(
+                        "id", device.getId(),
+                        "deviceId", device.getDeviceId(),
+                        "status", device.getStatus()
+                ))
+                .collect(Collectors.toList());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -52,93 +88,42 @@ public class RentalService {
         Long branchId = Long.valueOf(body.get("branchId").toString());
         Long userId = Long.valueOf(body.get("userId").toString());
 
-        Device device = deviceRepository.findByIdAndIsDeletedFalse(deviceId)
-                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        Branch branch = branchRepository.findByIdAndIsDeletedFalse(branchId)
-                .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        User user = userRepository.findByIdAndIsDeletedFalse(userId)
-                .orElseThrow(() -> new CustomException("USER_NOT_FOUND", "사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        Device device = deviceRepository.findByIdAndIsDeletedFalse(deviceId).orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "기기를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        Branch branch = branchRepository.findByIdAndIsDeletedFalse(branchId).orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        User user = userRepository.findByIdAndIsDeletedFalse(userId).orElseThrow(() -> new CustomException("USER_NOT_FOUND", "사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
         validateStatusTransition(device.getStatus(), "RENTING");
         device.setStatus("RENTING");
         device.setLatestRentalDate(LocalDate.now());
 
-        Rental rental = Rental.builder()
-                .device(device)
-                .branch(branch)
-                .user(user)
-                .status("RENTING")
-                .applyDate(LocalDate.now())
-                .isDeleted(false)
-                .build();
-
+        Rental rental = Rental.builder().device(device).branch(branch).user(user).status("RENTING").applyDate(LocalDate.now()).isDeleted(false).build();
         rentalRepository.save(rental);
-        body.put("id", rental.getId());
-        return body;
+        return convertToMap(rental);
     }
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> updateRental(Long id, Map<String, Object> body) {
-        Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "임대 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-
-        Device device = rental.getDevice();
-
-        if (body.containsKey("returnDate")) {
+        Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id).orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        if (body.containsKey("returnDate") && body.get("returnDate") != null) {
             rental.setReturnDate(LocalDate.parse(body.get("returnDate").toString()));
             rental.setStatus("RETURNED");
-
-            String currentStatus = device.getStatus();
-            if (!"AS_RECEIVED".equals(currentStatus) && !"AS_PROGRESS".equals(currentStatus)) {
-                validateStatusTransition(currentStatus, "RENTAL_READY");
-                device.setStatus("RENTAL_READY");
-            }
+            Device d = rental.getDevice();
+            if (!"AS_PROGRESS".equals(d.getStatus())) d.setStatus("RENTAL_READY");
         }
-
-        return body;
+        return convertToMap(rental);
     }
 
     @Transactional(rollbackFor = Exception.class)
     public void deleteRental(Long id) {
-        Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "임대 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-
+        Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id).orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         rental.setIsDeleted(true);
-
-        Device device = rental.getDevice();
-        List<Rental> remainingRentals = rentalRepository.findAllByDeviceIdAndIsDeletedFalse(device.getId());
-
-        LocalDate latestRentalDate = remainingRentals.stream()
-                .filter(record -> !record.getIsDeleted() && record.getApplyDate() != null)
-                .map(Rental::getApplyDate)
-                .max(LocalDate::compareTo)
-                .orElse(null);
-
-        device.setLatestRentalDate(latestRentalDate);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<Rental> getUserRentals(Long userId, CommonSearchRequest request) {
-        return rentalRepository.findAllByUserIdAndIsDeletedFalse(userId, request.toPageable());
-    }
-
-    @Transactional(readOnly = true)
-    public List<Device> getAvailableDevicesByBranch(Long branchId) {
-        return deviceRepository.findAllByBranchIdAndIsDeletedFalse(branchId).stream()
-                .filter(device -> "RENTAL_READY".equals(device.getStatus()))
-                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getRentalSummaryByBranch() {
-        List<Branch> branches = branchRepository.findAllByIsDeletedFalse();
-        return branches.stream().map(branch -> {
-            List<Rental> rentals = rentalRepository.findAllByBranchIdAndIsDeletedFalse(branch.getId());
-            return Map.<String, Object>of(
-                    "branchId", branch.getId(),
-                    "branchName", branch.getBranchName(),
-                    "count", rentals.size()
-            );
+        return branchRepository.findAllByIsDeletedFalse().stream().map(branch -> {
+            long count = rentalRepository.findAllByBranchIdAndIsDeletedFalse(branch.getId()).size();
+            return Map.<String, Object>of("branchId", branch.getId(), "branchName", branch.getBranchName(), "count", count);
         }).collect(Collectors.toList());
     }
 }
