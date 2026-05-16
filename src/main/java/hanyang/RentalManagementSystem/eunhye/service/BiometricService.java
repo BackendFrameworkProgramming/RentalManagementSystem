@@ -1,4 +1,4 @@
-package hanyang.RentalManagementSystem.Eunhye.service;
+package hanyang.RentalManagementSystem.eunhye.service;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.Pagination;

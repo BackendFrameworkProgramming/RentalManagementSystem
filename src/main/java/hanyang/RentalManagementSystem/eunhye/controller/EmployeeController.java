@@ -1,7 +1,7 @@
-package hanyang.RentalManagementSystem.Eunhye.controller;
+package hanyang.RentalManagementSystem.eunhye.controller;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
-import hanyang.RentalManagementSystem.Eunhye.service.EmployeeService;
+import hanyang.RentalManagementSystem.eunhye.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

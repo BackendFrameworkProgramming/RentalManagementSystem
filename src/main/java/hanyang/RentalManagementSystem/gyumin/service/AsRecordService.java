@@ -1,4 +1,4 @@
-package hanyang.RentalManagementSystem.Gyumin.service;
+package hanyang.RentalManagementSystem.gyumin.service;
 
 import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
 import hanyang.RentalManagementSystem.common.entity.*;

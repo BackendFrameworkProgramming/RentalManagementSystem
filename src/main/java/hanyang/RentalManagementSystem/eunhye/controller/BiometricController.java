@@ -1,7 +1,7 @@
-package hanyang.RentalManagementSystem.Eunhye.controller;
+package hanyang.RentalManagementSystem.eunhye.controller;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
-import hanyang.RentalManagementSystem.Eunhye.service.BiometricService;
+import hanyang.RentalManagementSystem.eunhye.service.BiometricService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

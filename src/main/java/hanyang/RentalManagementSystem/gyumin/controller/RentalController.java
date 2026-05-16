@@ -1,8 +1,8 @@
-package hanyang.RentalManagementSystem.Gyumin.controller;
+package hanyang.RentalManagementSystem.gyumin.controller;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
-import hanyang.RentalManagementSystem.Gyumin.service.RentalService;
+import hanyang.RentalManagementSystem.gyumin.service.RentalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
