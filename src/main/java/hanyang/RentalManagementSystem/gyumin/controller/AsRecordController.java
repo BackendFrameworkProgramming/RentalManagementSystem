@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -19,76 +20,76 @@ public class AsRecordController {
 
     // === AsRecord ===
     @GetMapping("/as-records")
-    public ResponseEntity<CommonResponse<?>> getAsRecords(CommonSearchRequest request) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.getAsRecords(request)));
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAsRecords(CommonSearchRequest request) {
+        return ResponseEntity.ok(asRecordService.getAsRecords(request));
     }
 
     @PostMapping("/as-records")
     public ResponseEntity<CommonResponse<Map<String, Object>>> createAsRecord(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.created(asRecordService.createAsRecord(body)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(asRecordService.createAsRecord(body));
     }
 
     @GetMapping("/as-records/{id}")
-    public ResponseEntity<CommonResponse<?>> getAsRecord(@PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.getAsRecord(id)));
+    public ResponseEntity<CommonResponse<Map<String, Object>>> getAsRecord(@PathVariable Long id) {
+        return ResponseEntity.ok(asRecordService.getAsRecord(id));
     }
 
     @PatchMapping("/as-records/{id}")
-    public ResponseEntity<CommonResponse<?>> updateAsRecord(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.updateAsRecord(id, body)));
+    public ResponseEntity<CommonResponse<Map<String, Object>>> updateAsRecord(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(asRecordService.updateAsRecord(id, body));
     }
 
     @DeleteMapping("/as-records/{id}")
-    public ResponseEntity<CommonResponse<?>> deleteAsRecord(@PathVariable Long id) {
+    public ResponseEntity<CommonResponse<Void>> deleteAsRecord(@PathVariable Long id) {
         asRecordService.deleteAsRecord(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @GetMapping("/as-records/summary/by-vendor")
-    public ResponseEntity<CommonResponse<?>> getAsSummaryByVendor() {
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAsSummaryByVendor() {
         return ResponseEntity.ok(CommonResponse.success(asRecordService.getAsSummaryByVendor()));
     }
 
     // === Vendor ===
     @GetMapping("/vendors")
-    public ResponseEntity<CommonResponse<?>> getVendors(CommonSearchRequest request) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.getVendors(request)));
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getVendors(CommonSearchRequest request) {
+        return ResponseEntity.ok(asRecordService.getVendors(request));
     }
 
     @PostMapping("/vendors")
     public ResponseEntity<CommonResponse<Map<String, Object>>> createVendor(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.created(asRecordService.createVendor(body)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(asRecordService.createVendor(body));
     }
 
     @PatchMapping("/vendors/{id}")
-    public ResponseEntity<CommonResponse<?>> updateVendor(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.updateVendor(id, body)));
+    public ResponseEntity<CommonResponse<Map<String, Object>>> updateVendor(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(asRecordService.updateVendor(id, body));
     }
 
     @DeleteMapping("/vendors/{id}")
-    public ResponseEntity<CommonResponse<?>> deleteVendor(@PathVariable Long id) {
+    public ResponseEntity<CommonResponse<Void>> deleteVendor(@PathVariable Long id) {
         asRecordService.deleteVendor(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     // === AsType ===
     @GetMapping("/as-types")
-    public ResponseEntity<CommonResponse<?>> getAsTypes(CommonSearchRequest request) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.getAsTypes(request)));
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAsTypes(CommonSearchRequest request) {
+        return ResponseEntity.ok(asRecordService.getAsTypes(request));
     }
 
     @PostMapping("/as-types")
     public ResponseEntity<CommonResponse<Map<String, Object>>> createAsType(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.created(asRecordService.createAsType(body)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(asRecordService.createAsType(body));
     }
 
     @PatchMapping("/as-types/{id}")
-    public ResponseEntity<CommonResponse<?>> updateAsType(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.updateAsType(id, body)));
+    public ResponseEntity<CommonResponse<Map<String, Object>>> updateAsType(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(asRecordService.updateAsType(id, body));
     }
 
     @DeleteMapping("/as-types/{id}")
-    public ResponseEntity<CommonResponse<?>> deleteAsType(@PathVariable Long id) {
+    public ResponseEntity<CommonResponse<Void>> deleteAsType(@PathVariable Long id) {
         asRecordService.deleteAsType(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
