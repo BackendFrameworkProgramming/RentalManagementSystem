@@ -49,6 +49,12 @@ public class DeviceController {
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> updateStatus(
+            @PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(deviceService.updateStatus(id, (String) body.get("status")));
+    }
+
     // 1-6 디바이스 AS 이력 조회
     @GetMapping("/{id}/as-records")
     public ResponseEntity<CommonResponse<List<Map<String, Object>>>> asHistory(

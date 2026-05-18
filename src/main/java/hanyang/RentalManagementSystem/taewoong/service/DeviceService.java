@@ -101,6 +101,19 @@ public class DeviceService {
         device.setIsDeleted(true);
     }
 
+    @Transactional
+    public CommonResponse<Map<String, Object>> updateStatus(Long id, String newStatus) {
+        Device d = deviceRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        validateStatusTransition(d.getStatus(), newStatus);
+        d.setStatus(newStatus);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", d.getId());
+        m.put("deviceId", d.getDeviceId());
+        m.put("status", d.getStatus());
+        return CommonResponse.success(m);
+    }
+
     // 1-6 AS 이력
     public CommonResponse<List<Map<String, Object>>> findAsRecordsByDeviceId(Long deviceId, CommonSearchRequest request) {
         Page<AsRecord> page = asRecordRepository.findAll(request.toPageable());
