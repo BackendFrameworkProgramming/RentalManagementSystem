@@ -3,37 +3,73 @@
 <head th:replace="~{fragments/layout :: head('부서/팀 관리')}"></head>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
-<div class="page-wrapper">
-    <!-- 좌측 부서 패널 -->
-    <div class="left-panel">
-        <div class="left-panel-header">
-            부서 <button class="btn btn-new" style="float:right;font-size:11px;padding:2px 6px" onclick="newDept()">+</button>
-        </div>
-        <div class="left-panel-list" id="deptList"></div>
-    </div>
-    <!-- 우측 팀 -->
-    <div class="main-content">
-        <div class="toolbar">
-            <div class="toolbar-left">
-                <div class="breadcrumb" id="breadcrumb">부서 선택</div>
-            </div>
-            <div class="toolbar-right">
-                <button class="btn" onclick="showHistory('dept')">부서 이력</button>
-                <button class="btn btn-new" onclick="newTeam()">팀 추가</button>
-            </div>
+<div class="page-wrapper dept-page">
+    <!-- 좌측: 부서 Grid -->
+    <div class="dept-panel" id="leftPanel">
+        <div class="dept-panel-header">
+            <span>부서</span>
+            <span class="dept-panel-actions">
+                <button class="icon-btn" title="삭제" onclick="deleteSelectedDepts()">⊖</button>
+                <button class="icon-btn" title="저장" onclick="saveAllDepts()">💾</button>
+                <button class="icon-btn" title="신규" onclick="newDept()">+</button>
+            </span>
         </div>
         <div class="table-wrap">
             <table class="grid">
                 <thead><tr>
-                    <th>순번</th><th>팀명</th><th>사용여부</th><th>적용일</th><th>정렬</th><th>관리</th>
+                    <th style="width:30px"><input type="checkbox" id="ckAllDept" onchange="toggleAll('.ckDept', 'ckAllDept')"></th>
+                    <th style="width:50px">순서 ↓</th>
+                    <th style="width:50px">이력</th>
+                    <th>부서명</th>
+                    <th style="width:110px">생성적용일</th>
+                    <th style="width:60px">사용</th>
+                </tr></thead>
+                <tbody id="deptTbody"></tbody>
+            </table>
+        </div>
+        <div class="dept-more">
+            <button class="btn" onclick="loadDepts(true)">↓ 더보기</button>
+        </div>
+    </div>
+
+    <!-- 가운데: 패널 영역 조정 -->
+    <div class="panel-resizer">
+        <button class="resize-btn" title="좌측 Panel 영역 최대화" onclick="resizePanels('left')">»</button>
+        <button class="resize-btn" title="우측 Panel 영역 최대화" onclick="resizePanels('right')">«</button>
+        <button class="resize-btn" title="초기 영역 상태로 복귀" onclick="resizePanels('reset')">⫼</button>
+    </div>
+
+    <!-- 우측: 팀 Grid -->
+    <div class="dept-panel" id="rightPanel">
+        <div class="dept-panel-header">
+            <span><span class="refresh" onclick="selectDept(null,'전체')">⟳</span> <span id="teamHeader">전체 &gt; 팀</span></span>
+            <span class="dept-panel-actions">
+                <button class="icon-btn" title="삭제" onclick="deleteSelectedTeams()">⊖</button>
+                <button class="icon-btn" title="저장" onclick="saveAllTeams()">💾</button>
+                <button class="icon-btn" title="신규" onclick="newTeam()">+</button>
+            </span>
+        </div>
+        <div class="table-wrap">
+            <table class="grid">
+                <thead><tr>
+                    <th style="width:30px"><input type="checkbox" id="ckAllTeam" onchange="toggleAll('.ckTeam','ckAllTeam')"></th>
+                    <th style="width:50px">순서 ↓</th>
+                    <th style="width:50px">이력</th>
+                    <th>팀</th>
+                    <th>부서</th>
+                    <th style="width:110px">생성적용일</th>
+                    <th style="width:60px">사용</th>
                 </tr></thead>
                 <tbody id="teamTbody"></tbody>
             </table>
         </div>
+        <div class="dept-more">
+            <button class="btn" onclick="loadTeams(true)">↓ 더보기</button>
+        </div>
     </div>
 </div>
 
-<!-- 부서 폼 -->
+<!-- 부서 폼 Draw -->
 <div class="draw-overlay" id="deptDrawOverlay" onclick="closeDraw('deptDraw')"></div>
 <div class="draw" id="deptDraw">
     <div class="draw-header"><span id="deptFormTitle">부서 등록</span><button class="draw-close" onclick="closeDraw('deptDraw')">×</button></div>
@@ -42,89 +78,150 @@
         <div class="form-group"><label>부서명</label><input id="d_name"></div>
         <div class="form-group"><label>적용일</label><input id="d_applied" type="date"></div>
         <div class="form-group"><label>정렬순서</label><input id="d_sort" type="number"></div>
+        <div class="form-group"><label>사용</label>
+            <select id="d_useYn"><option value="true">사용</option><option value="false">미사용</option></select>
+        </div>
         <div class="form-group"><label>변경자</label><input id="d_changedBy" placeholder="본인 이름"></div>
         <button class="btn btn-save" onclick="saveDept()" style="margin-top:12px;width:100%">저장</button>
     </div>
 </div>
 
-<!-- 팀 폼 -->
+<!-- 팀 폼 Draw -->
 <div class="draw-overlay" id="teamDrawOverlay" onclick="closeDraw('teamDraw')"></div>
 <div class="draw" id="teamDraw">
     <div class="draw-header"><span id="teamFormTitle">팀 등록</span><button class="draw-close" onclick="closeDraw('teamDraw')">×</button></div>
     <div class="draw-body">
         <input type="hidden" id="teamEditId">
+        <div class="form-group"><label>부서</label>
+            <select id="t_deptId"></select>
+        </div>
         <div class="form-group"><label>팀명</label><input id="t_name"></div>
         <div class="form-group"><label>적용일</label><input id="t_applied" type="date"></div>
         <div class="form-group"><label>정렬순서</label><input id="t_sort" type="number"></div>
+        <div class="form-group"><label>사용</label>
+            <select id="t_useYn"><option value="true">사용</option><option value="false">미사용</option></select>
+        </div>
         <div class="form-group"><label>변경자</label><input id="t_changedBy" placeholder="본인 이름"></div>
         <button class="btn btn-save" onclick="saveTeam()" style="margin-top:12px;width:100%">저장</button>
     </div>
 </div>
 
-<!-- 이력 Draw -->
+<!-- 변경 이력 Draw -->
 <div class="draw-overlay" id="historyDrawOverlay" onclick="closeDraw('historyDraw')"></div>
-<div class="draw" id="historyDraw">
+<div class="draw" id="historyDraw" style="width:640px">
     <div class="draw-header"><span id="historyTitle">변경 이력</span><button class="draw-close" onclick="closeDraw('historyDraw')">×</button></div>
     <div class="draw-body">
-        <table class="grid"><thead><tr><th>변경구분</th><th>변경전</th><th>변경후</th><th>변경자</th><th>변경일</th></tr></thead>
-        <tbody id="historyTbody"></tbody></table>
+        <table class="grid">
+            <thead><tr>
+                <th style="width:50px">No</th>
+                <th>변경 전</th>
+                <th>변경 후</th>
+                <th style="width:110px">변경일</th>
+                <th style="width:90px">변경자</th>
+            </tr></thead>
+            <tbody id="historyTbody"></tbody>
+        </table>
     </div>
 </div>
 
 <script th:src="@{/js/common.js}"></script>
 <script>
-let curDeptId = null, curDeptName = '';
+let curDeptId = null, curDeptName = '전체';
+let deptList = [], teamList = [];
+let deptSize = 20, teamSize = 20;
 
-async function loadDepts(){
-    const res = await api('/api/departments?page=1&size=100');
-    const data = res.data || [];
+async function loadDepts(more){
+    if(more) deptSize += 20;
+    const res = await api(`/api/departments?page=1&size=${deptSize}`);
+    deptList = res.data || [];
+    renderDepts();
+}
+
+function renderDepts(){
     let html = '';
-    data.forEach(d => {
-        html += `<div class="left-panel-item ${d.id===curDeptId?'active':''}" onclick="selectDept(${d.id},'${d.deptName}')">
-            <span>${d.deptName}</span>
-            <span>
-                <button class="btn" style="font-size:10px;padding:0 4px" onclick="event.stopPropagation();editDept(${JSON.stringify(d).replace(/"/g,'&quot;')})">✎</button>
-                <button class="btn btn-delete" style="font-size:10px;padding:0 4px" onclick="event.stopPropagation();deleteDept(${d.id})">×</button>
-            </span>
-        </div>`;
+    deptList.forEach((d, i) => {
+        const useToggle = `<label class="switch"><input type="checkbox" ${d.useYn?'checked':''} onclick="event.stopPropagation();toggleDeptUse(${d.id}, this.checked, '${(d.deptName||'').replace(/'/g,"\\'")}')"><span class="slider"></span></label>`;
+        html += `<tr class="${d.id===curDeptId?'row-selected':''}" onclick="selectDept(${d.id}, '${(d.deptName||'').replace(/'/g,"\\'")}')">
+            <td class="center" onclick="event.stopPropagation()"><input type="checkbox" class="ckDept" value="${d.id}"></td>
+            <td class="center">${d.sortOrder ?? (i+1)}</td>
+            <td class="center"><button class="icon-link" onclick="event.stopPropagation();showDeptHistory(${d.id}, '${(d.deptName||'').replace(/'/g,"\\'")}')">≡</button></td>
+            <td><a href="#" onclick="event.stopPropagation();editDept(${JSON.stringify(d).replace(/"/g,'&quot;')});return false">${d.deptName||'-'}</a></td>
+            <td>${d.appliedDate||'-'}</td>
+            <td class="center">${useToggle}</td>
+        </tr>`;
     });
-    document.getElementById('deptList').innerHTML = html || '<div style="padding:8px;color:#999">부서 없음</div>';
+    document.getElementById('deptTbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa">부서가 없습니다.</td></tr>';
 }
 
 async function selectDept(id, name){
-    curDeptId = id; curDeptName = name;
-    document.getElementById('breadcrumb').textContent = name + ' > 팀 목록';
-    await loadDepts();
+    curDeptId = id;
+    curDeptName = name || '전체';
+    document.getElementById('teamHeader').textContent = (curDeptName) + ' > 팀';
+    renderDepts();
     await loadTeams();
 }
 
-async function loadTeams(){
-    if(!curDeptId){ document.getElementById('teamTbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px">부서를 선택하세요</td></tr>'; return; }
-    const res = await api(`/api/departments/${curDeptId}/teams?page=1&size=50`);
-    const data = res.data || [];
-    let html = '';
-    data.forEach((t, i) => {
-        html += `<tr>
-            <td>${i+1}</td>
-            <td>${t.teamName||'-'}</td>
-            <td>${t.useYn?'사용':'미사용'}</td>
-            <td>${t.appliedDate||'-'}</td>
-            <td>${t.sortOrder||'-'}</td>
-            <td>
-                <button class="btn" onclick='editTeam(${JSON.stringify(t)})'>수정</button>
-                <button class="btn" onclick="showTeamHistory(${t.id})">이력</button>
-                <button class="btn btn-delete" onclick="deleteTeam(${t.id})">삭제</button>
-            </td>
-        </tr>`;
-    });
-    document.getElementById('teamTbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:20px">팀 없음</td></tr>';
+async function loadTeams(more){
+    if(more) teamSize += 20;
+    if(!curDeptId){
+        // 전체: 모든 부서의 팀을 합쳐서 조회
+        const all = [];
+        for(const d of deptList){
+            try {
+                const r = await api(`/api/departments/${d.id}/teams?page=1&size=${teamSize}`);
+                (r.data||[]).forEach(t => all.push(t));
+            } catch(e){}
+        }
+        teamList = all;
+    } else {
+        const res = await api(`/api/departments/${curDeptId}/teams?page=1&size=${teamSize}`);
+        teamList = res.data || [];
+    }
+    renderTeams();
 }
 
-// === 부서 ===
+function renderTeams(){
+    let html = '';
+    teamList.forEach((t, i) => {
+        const useToggle = `<label class="switch"><input type="checkbox" ${t.useYn?'checked':''} onclick="event.stopPropagation();toggleTeamUse(${t.id}, this.checked, '${(t.teamName||'').replace(/'/g,"\\'")}')"><span class="slider"></span></label>`;
+        html += `<tr>
+            <td class="center"><input type="checkbox" class="ckTeam" value="${t.id}"></td>
+            <td class="center">${t.sortOrder ?? (i+1)}</td>
+            <td class="center"><button class="icon-link" onclick="showTeamHistory(${t.id}, '${(t.teamName||'').replace(/'/g,"\\'")}')">≡</button></td>
+            <td><a href="#" onclick="editTeam(${JSON.stringify(t).replace(/"/g,'&quot;')});return false">${t.teamName||'-'}</a></td>
+            <td>${t.departmentName||'-'}</td>
+            <td>${t.appliedDate||'-'}</td>
+            <td class="center">${useToggle}</td>
+        </tr>`;
+    });
+    document.getElementById('teamTbody').innerHTML = html || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">팀이 없습니다.</td></tr>';
+}
+
+function toggleAll(sel, ckId){
+    const chk = document.getElementById(ckId).checked;
+    document.querySelectorAll(sel).forEach(c => c.checked = chk);
+}
+
+// === 사용 ON/OFF ===
+async function toggleDeptUse(id, useYn, name){
+    const body = { useYn: useYn, changedBy: 'UI' };
+    const res = await api(`/api/departments/${id}`, 'PATCH', body);
+    if(res.success) toast(`${name} ${useYn?'사용':'미사용'}`);
+    else { toast(res.error?.message||'실패','error'); loadDepts(); }
+}
+async function toggleTeamUse(id, useYn, name){
+    const body = { useYn: useYn, changedBy: 'UI' };
+    const res = await api(`/api/teams/${id}`, 'PATCH', body);
+    if(res.success) toast(`${name} ${useYn?'사용':'미사용'}`);
+    else { toast(res.error?.message||'실패','error'); loadTeams(); }
+}
+
+// === 부서 CRUD ===
 function newDept(){
     document.getElementById('deptEditId').value = '';
     document.getElementById('deptFormTitle').textContent = '부서 등록';
     ['d_name','d_applied','d_sort','d_changedBy'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('d_useYn').value = 'true';
     openDraw('deptDraw');
 }
 function editDept(d){
@@ -133,14 +230,19 @@ function editDept(d){
     document.getElementById('d_name').value = d.deptName||'';
     document.getElementById('d_applied').value = d.appliedDate||'';
     document.getElementById('d_sort').value = d.sortOrder||'';
+    document.getElementById('d_useYn').value = d.useYn ? 'true':'false';
+    document.getElementById('d_changedBy').value = '';
     openDraw('deptDraw');
 }
 async function saveDept(){
     const id = document.getElementById('deptEditId').value;
+    const name = document.getElementById('d_name').value.trim();
+    if(!name){ toast('부서명을 입력하세요','error'); return; }
     const body = {
-        deptName: document.getElementById('d_name').value,
+        deptName: name,
         appliedDate: document.getElementById('d_applied').value || null,
         sortOrder: document.getElementById('d_sort').value ? Number(document.getElementById('d_sort').value) : null,
+        useYn: document.getElementById('d_useYn').value === 'true',
         changedBy: document.getElementById('d_changedBy').value || null
     };
     const res = id
@@ -149,36 +251,62 @@ async function saveDept(){
     if(res.success){ toast(id?'수정됨':'등록됨'); closeDraw('deptDraw'); loadDepts(); }
     else toast(res.error?.message||'실패','error');
 }
-async function deleteDept(id){
-    if(!confirm('정말 삭제하시겠습니까?')) return;
-    const res = await api(`/api/departments/${id}`, 'DELETE');
-    if(res.success){ toast('삭제됨'); curDeptId = null; loadDepts(); loadTeams(); }
-    else toast(res.error?.message||'실패','error');
+async function deleteSelectedDepts(){
+    const ids = [...document.querySelectorAll('.ckDept:checked')].map(c => Number(c.value));
+    if(!ids.length){ toast('선택된 부서가 없습니다','error'); return; }
+    if(!confirm(`${ids.length}건의 부서를 삭제하시겠습니까? (하위 팀이 있으면 거부됩니다)`)) return;
+    let failed = [];
+    for(const id of ids){
+        const r = await api(`/api/departments/${id}`, 'DELETE');
+        if(!r.success) failed.push(r.error?.message||id);
+    }
+    if(failed.length) toast(`일부 실패: ${failed.join(', ')}`,'error');
+    else toast('삭제됨');
+    if(ids.includes(curDeptId)){ curDeptId = null; curDeptName = '전체'; document.getElementById('teamHeader').textContent='전체 > 팀'; }
+    loadDepts();
+    loadTeams();
 }
+function saveAllDepts(){ toast('변경사항은 행의 사용 토글/부서명으로 저장됩니다.'); }
 
-// === 팀 ===
+// === 팀 CRUD ===
 function newTeam(){
     if(!curDeptId){ toast('먼저 부서를 선택하세요','error'); return; }
     document.getElementById('teamEditId').value = '';
     document.getElementById('teamFormTitle').textContent = curDeptName + ' - 팀 등록';
+    fillDeptSelect();
+    document.getElementById('t_deptId').value = curDeptId;
     ['t_name','t_applied','t_sort','t_changedBy'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('t_useYn').value = 'true';
     openDraw('teamDraw');
 }
 function editTeam(t){
     document.getElementById('teamEditId').value = t.id;
     document.getElementById('teamFormTitle').textContent = '팀 수정';
+    fillDeptSelect();
+    document.getElementById('t_deptId').value = t.departmentId || '';
     document.getElementById('t_name').value = t.teamName||'';
     document.getElementById('t_applied').value = t.appliedDate||'';
     document.getElementById('t_sort').value = t.sortOrder||'';
+    document.getElementById('t_useYn').value = t.useYn ? 'true':'false';
+    document.getElementById('t_changedBy').value = '';
     openDraw('teamDraw');
+}
+function fillDeptSelect(){
+    const sel = document.getElementById('t_deptId');
+    sel.innerHTML = deptList.map(d => `<option value="${d.id}">${d.deptName}</option>`).join('');
 }
 async function saveTeam(){
     const id = document.getElementById('teamEditId').value;
+    const name = document.getElementById('t_name').value.trim();
+    const deptId = document.getElementById('t_deptId').value;
+    if(!name){ toast('팀명을 입력하세요','error'); return; }
+    if(!deptId){ toast('부서를 선택하세요','error'); return; }
     const body = {
-        teamName: document.getElementById('t_name').value,
-        departmentId: curDeptId,
+        teamName: name,
+        departmentId: Number(deptId),
         appliedDate: document.getElementById('t_applied').value || null,
         sortOrder: document.getElementById('t_sort').value ? Number(document.getElementById('t_sort').value) : null,
+        useYn: document.getElementById('t_useYn').value === 'true',
         changedBy: document.getElementById('t_changedBy').value || null
     };
     const res = id
@@ -187,41 +315,64 @@ async function saveTeam(){
     if(res.success){ toast(id?'수정됨':'등록됨'); closeDraw('teamDraw'); loadTeams(); }
     else toast(res.error?.message||'실패','error');
 }
-async function deleteTeam(id){
-    if(!confirm('정말 삭제하시겠습니까?')) return;
-    const res = await api(`/api/teams/${id}`, 'DELETE');
-    if(res.success){ toast('삭제됨'); loadTeams(); }
-    else toast(res.error?.message||'실패','error');
+async function deleteSelectedTeams(){
+    const ids = [...document.querySelectorAll('.ckTeam:checked')].map(c => Number(c.value));
+    if(!ids.length){ toast('선택된 팀이 없습니다','error'); return; }
+    if(!confirm(`${ids.length}건의 팀을 삭제하시겠습니까? (소속 직원이 있으면 거부됩니다)`)) return;
+    let failed = [];
+    for(const id of ids){
+        const r = await api(`/api/teams/${id}`, 'DELETE');
+        if(!r.success) failed.push(r.error?.message||id);
+    }
+    if(failed.length) toast(`일부 실패: ${failed.join(', ')}`,'error');
+    else toast('삭제됨');
+    loadTeams();
 }
+function saveAllTeams(){ toast('변경사항은 행의 사용 토글/팀명으로 저장됩니다.'); }
 
-// === 이력 ===
-async function showHistory(kind){
-    if(!curDeptId){ toast('부서를 먼저 선택하세요','error'); return; }
-    document.getElementById('historyTitle').textContent = curDeptName + ' 변경 이력';
-    const res = await api(`/api/departments/${curDeptId}/history?page=1&size=50`);
+// === 변경 이력 ===
+async function showDeptHistory(deptId, name){
+    document.getElementById('historyTitle').textContent = (name||'부서') + ' 변경 이력';
+    const res = await api(`/api/departments/${deptId}/history?page=1&size=100`);
     renderHistory(res.data || []);
 }
-async function showTeamHistory(teamId){
-    document.getElementById('historyTitle').textContent = '팀 변경 이력';
-    const res = await api(`/api/teams/${teamId}/history?page=1&size=50`);
+async function showTeamHistory(teamId, name){
+    document.getElementById('historyTitle').textContent = (name||'팀') + ' 변경 이력';
+    const res = await api(`/api/teams/${teamId}/history?page=1&size=100`);
     renderHistory(res.data || []);
 }
 function renderHistory(rows){
     let html = '';
-    rows.forEach(h => {
+    rows.forEach((h, i) => {
+        const no = rows.length - i;
+        const beforeText = h.beforeValue ? `<span class="hist-tag tag-${h.changeType||''}">${h.changeType||'-'}</span><div class="hist-json">${h.beforeValue}</div>` : '<span class="hist-tag tag-CREATE">CREATE</span>';
+        const afterText = h.afterValue ? `<div class="hist-json">${h.afterValue}</div>` : '<span class="hist-tag tag-DELETE">DELETE</span>';
         html += `<tr>
-            <td>${h.changeType||'-'}</td>
-            <td style="font-size:11px;max-width:200px;word-break:break-all">${h.beforeValue||'-'}</td>
-            <td style="font-size:11px;max-width:200px;word-break:break-all">${h.afterValue||'-'}</td>
-            <td>${h.changedBy||'-'}</td>
+            <td class="center">${no}</td>
+            <td>${beforeText}</td>
+            <td>${afterText}</td>
             <td>${h.changedDate||'-'}</td>
+            <td>${h.changedBy||'-'}</td>
         </tr>`;
     });
-    document.getElementById('historyTbody').innerHTML = html || '<tr><td colspan="5" style="text-align:center">이력 없음</td></tr>';
+    document.getElementById('historyTbody').innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:14px;color:#aaa">변경 이력이 없습니다.</td></tr>';
     openDraw('historyDraw');
 }
 
-loadDepts();
+// === Panel 영역 조정 ===
+function resizePanels(mode){
+    const left = document.getElementById('leftPanel');
+    const right = document.getElementById('rightPanel');
+    left.style.flex = ''; right.style.flex = '';
+    left.style.display = ''; right.style.display = '';
+    if(mode==='left'){ right.style.display = 'none'; left.style.flex = '1'; }
+    else if(mode==='right'){ left.style.display = 'none'; right.style.flex = '1'; }
+}
+
+(async function init(){
+    await loadDepts();
+    await loadTeams();
+})();
 </script>
 </body>
 </html>
