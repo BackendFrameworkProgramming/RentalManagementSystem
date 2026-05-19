@@ -1,6 +1,36 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('부서/팀 관리')}"></head>
+<style>
+  .dept-page{display:flex;height:calc(100vh - 82px);overflow:hidden;background:#f0f0f0;gap:4px;padding:4px}
+  .dept-panel{flex:1;background:#fff;display:flex;flex-direction:column;border:1px solid #ddd;border-radius:4px;overflow:hidden;min-width:0}
+  .dept-panel-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#4a5568;color:#fff;font-size:13px;font-weight:600;min-height:36px}
+  .dept-panel-actions{display:flex;gap:4px}
+  .icon-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;width:24px;height:24px;border-radius:3px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .icon-btn:hover{background:rgba(255,255,255,.3)}
+  .dept-panel .table-wrap{flex:1;overflow:auto}
+  .dept-more{padding:6px 12px;border-top:1px solid #eee;background:#fafafa}
+  .dept-more .btn{width:100%;font-size:11px;color:#7f8c8d;border-color:#ddd}
+  .row-selected td{background:#e8f4fd !important}
+  .panel-resizer{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;width:24px;min-width:24px;padding:4px 0}
+  .resize-btn{background:#fff;border:1px solid #ccc;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;color:#555}
+  .resize-btn:hover{background:#e8f4fd;border-color:#3498db;color:#3498db}
+  .switch{position:relative;display:inline-block;width:32px;height:18px;vertical-align:middle}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:18px;transition:.3s}
+  .slider:before{position:absolute;content:"";width:12px;height:12px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+  .switch input:checked+.slider{background:#27ae60}
+  .switch input:checked+.slider:before{transform:translateX(14px)}
+  .icon-link{background:none;border:none;cursor:pointer;color:#3498db;font-size:15px;padding:0;line-height:1}
+  .icon-link:hover{color:#2980b9}
+  .hist-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;margin-bottom:3px}
+  .hist-tag.tag-CREATE{background:#c6f6d5;color:#276749}
+  .hist-tag.tag-UPDATE{background:#bee3f8;color:#2b6cb0}
+  .hist-tag.tag-DELETE{background:#fed7d7;color:#9b2c2c}
+  .hist-json{font-size:11px;color:#555;background:#f7fafc;border:1px solid #e2e8f0;border-radius:3px;padding:4px 6px;max-width:240px;word-break:break-all;white-space:pre-wrap}
+  .draw{right:0 !important;transform:translateX(110%);transition:transform .3s !important}
+  .draw.active{transform:translateX(0)}
+</style>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
 <div class="page-wrapper dept-page">

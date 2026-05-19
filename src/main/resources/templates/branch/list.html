@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('지점 관리')}"></head>
+<style>
+  .draw { right: 0 !important; transform: translateX(110%); transition: transform .3s !important; }
+  .draw.active { transform: translateX(0); }
+</style>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
 <div class="page-wrapper">
