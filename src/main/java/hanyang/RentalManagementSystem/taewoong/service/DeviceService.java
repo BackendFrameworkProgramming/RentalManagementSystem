@@ -49,6 +49,7 @@ public class DeviceService {
                 .modelVersion(mv)
                 .status("INCOMING")
                 .battery((String) body.get("battery"))
+                .remark((String) body.get("remark"))
                 .incomingDate(LocalDate.now())
                 .isDeleted(false)
                 .build();
@@ -59,6 +60,7 @@ public class DeviceService {
                     .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
             device.setBranch(branch);
             device.setStatus("RENTAL_READY");
+            device.setBranchSendDate(LocalDate.now());
         }
 
         deviceRepository.save(device);
@@ -83,6 +85,18 @@ public class DeviceService {
         }
         if (body.containsKey("battery")) device.setBattery((String) body.get("battery"));
         if (body.containsKey("remark")) device.setRemark((String) body.get("remark"));
+        if (body.containsKey("branchId")) {
+            if (body.get("branchId") != null) {
+                Long branchId = ((Number) body.get("branchId")).longValue();
+                Branch branch = branchRepository.findById(branchId)
+                        .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+                device.setBranch(branch);
+                device.setBranchSendDate(LocalDate.now());
+            } else {
+                device.setBranch(null);
+                device.setBranchSendDate(null);
+            }
+        }
 
         return CommonResponse.success(toMap(device));
     }
@@ -91,7 +105,6 @@ public class DeviceService {
     @Transactional
     public void delete(Long id) {
         Device device = getDevice(id);
-        // 진행 중 임대 확인
         boolean hasActiveRental = rentalRepository.findAll().stream()
                 .anyMatch(r -> r.getDevice() != null && r.getDevice().getId().equals(id)
                         && !r.getIsDeleted() && r.getReturnDate() == null);
@@ -101,6 +114,7 @@ public class DeviceService {
         device.setIsDeleted(true);
     }
 
+    // 1-5-2 상태 변경
     @Transactional
     public CommonResponse<Map<String, Object>> updateStatus(Long id, String newStatus) {
         Device d = deviceRepository.findByIdAndIsDeletedFalse(id)
@@ -116,9 +130,8 @@ public class DeviceService {
 
     // 1-6 AS 이력
     public CommonResponse<List<Map<String, Object>>> findAsRecordsByDeviceId(Long deviceId, CommonSearchRequest request) {
-        Page<AsRecord> page = asRecordRepository.findAll(request.toPageable());
-        List<Map<String, Object>> data = page.getContent().stream()
-                .filter(r -> r.getDevice().getId().equals(deviceId) && !r.getIsDeleted())
+        List<AsRecord> records = asRecordRepository.findAllByDeviceIdAndIsDeletedFalse(deviceId);
+        List<Map<String, Object>> data = records.stream()
                 .map(r -> {
                     Map<String, Object> map = new LinkedHashMap<>();
                     map.put("id", r.getId());
@@ -126,17 +139,31 @@ public class DeviceService {
                     map.put("receiptDate", r.getReceiptDate());
                     map.put("receiptBy", r.getReceiptBy());
                     map.put("receiptContent", r.getReceiptContent());
+                    map.put("confirmBy", r.getConfirmBy());
+                    map.put("confirmDate", r.getConfirmDate());
                     map.put("confirmResult", r.getConfirmResult());
                     map.put("repairContent", r.getRepairContent());
                     map.put("completeDate", r.getCompleteDate());
-                    if (r.getRental() != null) {
+                    map.put("assignedTo", r.getAssignedTo());
+                    map.put("collectDate", r.getCollectDate());
+                    map.put("resendDate", r.getResendDate());
+                    if (r.getRental() != null && r.getRental().getUser() != null) {
                         map.put("userName", r.getRental().getUser().getUserName());
                         map.put("rentalDate", r.getRental().getApplyDate());
+                    } else {
+                        map.put("userName", "-");
+                        map.put("rentalDate", "-");
+                    }
+                    if (r.getVendor() != null) {
+                        map.put("vendorName", r.getVendor().getVendorName());
+                    }
+                    if (r.getAsType() != null) {
+                        map.put("asTypeName", r.getAsType().getTypeName());
                     }
                     return map;
                 })
                 .collect(Collectors.toList());
-        return CommonResponse.success(data, Pagination.of(page));
+        return CommonResponse.success(data);
     }
 
     // 1-7 지점 연결 (단건)
@@ -185,6 +212,7 @@ public class DeviceService {
         validateStatusTransition(device.getStatus(), "INCOMING");
         device.setBranch(null);
         device.setStatus("INCOMING");
+        device.setBranchSendDate(null);
     }
 
     // 1-10 지점 해제 (다중)
@@ -197,6 +225,7 @@ public class DeviceService {
                 validateStatusTransition(d.getStatus(), "INCOMING");
                 d.setBranch(null);
                 d.setStatus("INCOMING");
+                d.setBranchSendDate(null);
             } catch (CustomException e) {
                 errors.add(ErrorInfo.BatchErrorDetail.builder().targetId(did).reason(e.getCode()).build());
             }
@@ -210,10 +239,13 @@ public class DeviceService {
         return CommonResponse.success(result);
     }
 
-    // 1-11 지점별 수량 집계
-    public List<Map<String, Object>> summaryByBranch() {
-        return deviceRepository.findAll().stream()
-                .filter(d -> !d.getIsDeleted() && d.getBranch() != null)
+    // 1-11 지점별 수량 집계 (출고/교체/폐기 포함)
+    public CommonResponse<Map<String, Object>> summaryByBranch() {
+        List<Device> all = deviceRepository.findAllByIsDeletedFalse();
+
+        // 지점별 집계
+        List<Map<String, Object>> branches = all.stream()
+                .filter(d -> d.getBranch() != null)
                 .collect(Collectors.groupingBy(d -> d.getBranch().getId()))
                 .entrySet().stream()
                 .map(entry -> {
@@ -225,6 +257,27 @@ public class DeviceService {
                     return map;
                 })
                 .collect(Collectors.toList());
+
+        // 전체 집계
+        long total = all.size();
+        long unshipped = all.stream().filter(d -> d.getBranch() == null).count();
+        long shipped = all.stream().filter(d -> "RENTING".equals(d.getStatus()) || "RENTAL_READY".equals(d.getStatus())).count();
+        long returned = all.stream().filter(d -> "RETURNED".equals(d.getStatus())).count();
+        long disposed = all.stream().filter(d -> "DISPOSED".equals(d.getStatus())).count();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("branches", branches);
+        result.put("total", total);
+        result.put("unshipped", unshipped);
+        result.put("shipped", shipped);
+        result.put("returned", returned);
+        result.put("disposed", disposed);
+        return CommonResponse.success(result);
+    }
+
+    // 모델버전별 디바이스 수
+    public long countByModelVersionId(Long modelVersionId) {
+        return deviceRepository.findAllByModelVersionIdAndIsDeletedFalse(modelVersionId).size();
     }
 
     // === 헬퍼 ===
@@ -242,6 +295,7 @@ public class DeviceService {
         map.put("battery", d.getBattery());
         map.put("branchId", d.getBranch() != null ? d.getBranch().getId() : null);
         map.put("branchName", d.getBranch() != null ? d.getBranch().getBranchName() : null);
+        map.put("branchSendDate", d.getBranchSendDate());
         map.put("modelVersionId", d.getModelVersion().getId());
         map.put("modelName", d.getModelVersion().getModel().getModelName());
         map.put("version", d.getModelVersion().getVersion());

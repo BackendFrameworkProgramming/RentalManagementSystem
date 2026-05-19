@@ -49,6 +49,7 @@ public class DeviceController {
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
+    // 1-5-2 디바이스 상태 변경
     @PatchMapping("/{id}/status")
     public ResponseEntity<CommonResponse<Map<String, Object>>> updateStatus(
             @PathVariable Long id, @RequestBody Map<String, Object> body) {
@@ -66,7 +67,7 @@ public class DeviceController {
     @PatchMapping("/{id}/branch")
     public ResponseEntity<CommonResponse<Map<String, Object>>> linkBranch(
             @PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(deviceService.linkBranch(id, (Long) body.get("branchId")));
+        return ResponseEntity.ok(deviceService.linkBranch(id, ((Number) body.get("branchId")).longValue()));
     }
 
     // 1-8 지점 연결 (다중)
@@ -97,7 +98,13 @@ public class DeviceController {
 
     // 1-11 지점별 수량 집계
     @GetMapping("/summary/by-branch")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> summaryByBranch() {
-        return ResponseEntity.ok(CommonResponse.success(deviceService.summaryByBranch()));
+    public ResponseEntity<CommonResponse<Map<String, Object>>> summaryByBranch() {
+        return ResponseEntity.ok(deviceService.summaryByBranch());
+    }
+
+    // 모델버전별 디바이스 수
+    @GetMapping("/count/by-model-version/{mvId}")
+    public ResponseEntity<Map<String, Object>> countByModelVersion(@PathVariable Long mvId) {
+        return ResponseEntity.ok(Map.of("modelVersionId", mvId, "count", deviceService.countByModelVersionId(mvId)));
     }
 }
