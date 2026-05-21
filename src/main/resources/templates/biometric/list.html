@@ -9,10 +9,14 @@
 
     <!-- 좌측 메뉴 -->
     <div class="left-panel">
-        <div class="left-panel-header">모델별 현황</div>
+        <div class="left-panel-header">모델</div>
 
-        <div class="left-panel-list">
-            <div class="left-panel-item active">
+        <div class="left-panel-search">
+            <input type="text" id="modelSearch" placeholder="">
+        </div>
+
+        <div class="left-panel-list" id="modelList">
+            <div class="left-panel-item active" onclick="renderTable(biometricList)">
                 <span>전체</span>
                 <span class="count" id="totalCount">0</span>
             </div>
@@ -26,56 +30,84 @@
         <div class="toolbar">
             <div class="toolbar-left">
                 <div class="breadcrumb">
-                    디바이스 사용 생체 정보
+                    <span class="refresh" onclick="loadBiometricData()">⟳</span>
+                    OOO &gt; 디바이스 사용 생체
                 </div>
             </div>
 
             <div class="toolbar-right">
-                <button class="btn btn-new"
-                        onclick="loadBiometricData()">
-                    새로고침
-                </button>
+                <button class="btn btn-delete" onclick="deleteSelectedBiometric()">삭제</button>
+                <button class="btn btn-save" onclick="loadBiometricData()">저장</button>
             </div>
         </div>
 
         <!-- 검색 -->
         <div class="search-bar">
+            <select id="searchField">
+                <option value="all">통합검색</option>
+                <option value="branchName">지점명</option>
+                <option value="deviceId">디바이스ID</option>
+                <option value="modelName">모델명</option>
+                <option value="userName">사용자</option>
+            </select>
+
             <input type="text"
                    id="searchKeyword"
-                   placeholder="사용자명 검색">
+                   placeholder="앞 2글자 입력 후 엔터"
+                   onkeydown="if(event.key==='Enter') filterData()">
 
-            <button class="search-btn"
-                    onclick="filterData()">
-                🔍
-            </button>
+            <button class="search-btn" onclick="filterData()">🔍</button>
+
+            <select id="sortField" onchange="sortData()">
+                <option value="latestUseDate">신청일</option>
+                <option value="latestUseDate">최근 사용일</option>
+                <option value="latestUpdateTime">최근 업데이트 시간</option>
+            </select>
+
+            <select id="sortDirection" onchange="sortData()">
+                <option value="desc">내림차순</option>
+                <option value="asc">오름차순</option>
+            </select>
 
             <span class="total-info">
                 총 <b id="totalEl">0</b>건
             </span>
+
+            <span class="per-page">20 건씩 보기</span>
         </div>
 
         <!-- 본문 -->
         <div style="
             display:grid;
-            grid-template-columns: 1.2fr 1fr;
+            grid-template-columns: 1.4fr 0.8fr;
             gap:12px;
-            height:calc(100vh - 170px);
+            height:calc(100vh - 150px);
         ">
 
-            <!-- 생체정보 -->
-            <div class="table-wrap"
-                 style="height:100%; overflow:auto;">
+            <!-- 생체정보 목록 -->
+            <div class="table-wrap" style="height:100%; overflow:auto;">
 
                 <table class="grid">
                     <thead>
                     <tr>
+                        <th style="width:35px;">선택</th>
                         <th>순번</th>
-                        <th>사용자</th>
+                        <th>지점</th>
                         <th>디바이스ID</th>
-                        <th>호흡수</th>
-                        <th>걸음수</th>
+                        <th>모델명</th>
+                        <th>배터리</th>
+                        <th>사용자</th>
                         <th>최근 사용일</th>
-                        <th>최근 위치</th>
+                        <th>최근 사용시간</th>
+                        <th>사용시간/일</th>
+                        <th>호흡수/일</th>
+                        <th>걸음수/일</th>
+                        <th>총 사용시간</th>
+                        <th>총 걸음수</th>
+                        <th>응급</th>
+                        <th>응급 기록시간</th>
+                        <th>최근 업데이트 시간</th>
+                        <th>최근 사용자 위치</th>
                     </tr>
                     </thead>
 
@@ -83,7 +115,7 @@
                 </table>
             </div>
 
-            <!-- 우측 -->
+            <!-- 우측 입력/상세 탭 유지 -->
             <div style="
                 display:flex;
                 flex-direction:column;
@@ -91,63 +123,118 @@
                 height:100%;
             ">
 
-                <!-- 선택 정보 -->
+                <!-- 선택 생체정보 -->
                 <div class="table-wrap"
                      style="
-        height:170px;
-        padding:14px;
-        background:#ffffff;
-        border:1px solid #d8dee8;
-        border-radius:6px;
-        box-shadow:0 1px 3px rgba(0,0,0,0.04);
-     ">
+                        padding:14px;
+                        background:#ffffff;
+                        border:1px solid #d8dee8;
+                        border-radius:6px;
+                        box-shadow:0 1px 3px rgba(0,0,0,0.04);
+                     ">
 
                     <div style="
-        font-weight:bold;
-        margin-bottom:12px;
-        font-size:14px;
-        color:#2f3b52;
-        border-bottom:1px solid #e5e9f0;
-        padding-bottom:8px;
-    ">
-                        선택 생체정보
+                        font-weight:bold;
+                        margin-bottom:12px;
+                        font-size:14px;
+                        color:#2f3b52;
+                        border-bottom:1px solid #e5e9f0;
+                        padding-bottom:8px;
+                    ">
+                        생체정보 상세
                     </div>
 
-                    <div id="selectedInfo"
-                         style="
-            display:grid;
-            grid-template-columns:110px 1fr;
-            row-gap:10px;
-            column-gap:10px;
-            font-size:12px;
-            align-items:center;
-         ">
+                    <input type="hidden" id="biometricId">
 
-                        <div style="color:#7b8794;">사용자</div>
-                        <div>-</div>
-
-                        <div style="color:#7b8794;">디바이스ID</div>
-                        <div>-</div>
-
-                        <div style="color:#7b8794;">호흡수</div>
-                        <div>-</div>
-
-                        <div style="color:#7b8794;">걸음수</div>
-                        <div>-</div>
-
-                        <div style="color:#7b8794;">최근 위치</div>
-                        <div>-</div>
-
+                    <div class="form-group">
+                        <label>지점</label>
+                        <input id="branchName">
                     </div>
+
+                    <div class="form-group">
+                        <label>디바이스ID</label>
+                        <input id="deviceId">
+                    </div>
+
+                    <div class="form-group">
+                        <label>모델명</label>
+                        <input id="modelName">
+                    </div>
+
+                    <div class="form-group">
+                        <label>배터리</label>
+                        <input id="battery">
+                    </div>
+
+                    <div class="form-group">
+                        <label>사용자</label>
+                        <input id="userName">
+                    </div>
+
+                    <div class="form-group">
+                        <label>최근 사용일</label>
+                        <input id="latestUseDate" type="date">
+                    </div>
+
+                    <div class="form-group">
+                        <label>최근 사용시간</label>
+                        <input id="latestUseTime" placeholder="예: 14:30">
+                    </div>
+
+                    <div class="form-group">
+                        <label>사용시간/일</label>
+                        <input id="useTimePerDay" placeholder="예: 2시간">
+                    </div>
+
+                    <div class="form-group">
+                        <label>호흡수/일</label>
+                        <input id="breathPerDay" type="number">
+                    </div>
+
+                    <div class="form-group">
+                        <label>걸음수/일</label>
+                        <input id="stepsPerDay" type="number">
+                    </div>
+
+                    <div class="form-group">
+                        <label>총 사용시간</label>
+                        <input id="totalUseTime" placeholder="예: 120시간">
+                    </div>
+
+                    <div class="form-group">
+                        <label>총 걸음수</label>
+                        <input id="totalSteps" type="number">
+                    </div>
+
+                    <div class="form-group">
+                        <label>응급</label>
+                        <input id="emergencyYn">
+                    </div>
+
+                    <div class="form-group">
+                        <label>응급 기록시간</label>
+                        <input id="emergencyRecordTime">
+                    </div>
+
+                    <div class="form-group">
+                        <label>최근 업데이트 시간</label>
+                        <input id="latestUpdateTime">
+                    </div>
+
+                    <div class="form-group">
+                        <label>최근 사용자 위치</label>
+                        <input id="latestLocation">
+                    </div>
+
+                    <button class="btn btn-save"
+                            onclick="saveBiometricData()"
+                            style="width:100%; margin-top:8px;">
+                        저장
+                    </button>
                 </div>
 
                 <!-- 응급기록 -->
-                <div class="table-wrap"
-                     style="
-                        flex:1;
-                        overflow:auto;
-                     ">
-
+                <div class="table-wrap" style="flex:1; overflow:auto;">
                     <table class="grid">
                         <thead>
                         <tr>
@@ -161,11 +248,7 @@
                         <tbody id="emergencyBody">
                         <tr>
                             <td colspan="4"
-                                style="
-                                    text-align:center;
-                                    padding:30px;
-                                    color:#999;
-                                ">
+                                style="text-align:center; padding:30px; color:#999;">
                                 생체정보를 선택하면 응급기록이 표시됩니다.
                             </td>
                         </tr>
@@ -173,8 +256,28 @@
                     </table>
                 </div>
 
-            </div>
+                <!-- Desc -->
+                <div class="table-wrap"
+                     style="
+                        padding:12px;
+                        background:#fff;
+                        font-size:12px;
+                        color:#666;
+                        line-height:1.8;
+                     ">
+                    <b style="color:#2f3b52;">Desc</b><br><br>
 
+                    <b>1 모델별 디바이스</b><br>
+                    ㆍ모델별 디바이스 총수량, 사용중 수량<br><br>
+
+                    <b style="color:red;">2 응급</b><br>
+                    <span style="color:red;">ㆍ과호흡, 낙상, ???</span><br><br>
+
+                    <b>3 통합검색</b><br>
+                    ㆍ지점명, 디바이스ID, 모델명, 사용자 키워드 검색
+                </div>
+
+            </div>
         </div>
 
     </div>
@@ -183,162 +286,276 @@
 <script th:src="@{/js/common.js}"></script>
 
 <script>
-
     let biometricList = [];
 
     async function loadBiometricData() {
+        const res = await api('/api/biometric-data?page=1&size=20');
 
-        const res = await api('/api/biometric-data');
-
-        biometricList = res.data.biometricData || [];
+        biometricList = res.data?.biometricData || [];
 
         document.getElementById('totalEl').textContent =
-            res.pagination.totalElements;
+            res.pagination?.totalElements || biometricList.length;
 
         document.getElementById('totalCount').textContent =
-            res.pagination.totalElements;
+            res.pagination?.totalElements || biometricList.length;
 
         renderTable(biometricList);
+        loadModelSummary();
+    }
+
+    async function loadModelSummary() {
+        const res = await api('/api/biometric-data/summary/by-model');
+        const summary = res.data?.summary || {};
+
+        const modelList = document.getElementById('modelList');
+
+        let html = `
+            <div class="left-panel-item active" onclick="renderTable(biometricList)">
+                <span>전체</span>
+                <span class="count">${biometricList.length}</span>
+            </div>
+        `;
+
+        Object.entries(summary).forEach(([modelName, count]) => {
+            html += `
+                <div class="left-panel-item" onclick="filterByModel('${modelName}')">
+                    <span>${modelName}</span>
+                    <span class="count">${count}</span>
+                </div>
+            `;
+        });
+
+        modelList.innerHTML = html;
     }
 
     function renderTable(data) {
-
         const tbody = document.getElementById('tbody');
 
         if (!data.length) {
-
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7"
-                        style="
-                            text-align:center;
-                            padding:30px;
-                            color:#999;
-                        ">
+                    <td colspan="18" style="text-align:center; padding:30px; color:#999;">
                         데이터가 없습니다.
                     </td>
                 </tr>
             `;
-
             return;
         }
 
         tbody.innerHTML = data.map((d, i) => `
-
-            <tr style="cursor:pointer;"
-                onclick="loadEmergency(${d.id})">
-
-                <td>${i + 1}</td>
-                <td>${d.userName || '-'}</td>
+            <tr style="cursor:pointer;" onclick="selectBiometric(${d.id})">
+                <td class="center" onclick="event.stopPropagation();">
+                    <input type="checkbox" class="ck" value="${d.id}">
+                </td>
+                <td class="center">${i + 1}</td>
+                <td>${d.branchName || '-'}</td>
                 <td>${d.deviceId || '-'}</td>
+                <td>${d.modelName || '-'}</td>
+                <td>${d.battery || '-'}</td>
+                <td>${d.userName || '-'}</td>
+                <td>${d.latestUseDate || '-'}</td>
+                <td>${d.latestUseTime || '-'}</td>
+                <td>${d.useTimePerDay || '-'}</td>
                 <td>${d.breathPerDay || '-'}</td>
                 <td>${d.stepsPerDay || '-'}</td>
-                <td>${d.latestUseDate || '-'}</td>
+                <td>${d.totalUseTime || '-'}</td>
+                <td>${d.totalSteps || '-'}</td>
+                <td>${d.emergencyYn || '-'}</td>
+                <td>${formatDateTime(d.emergencyRecordTime)}</td>
+                <td>${formatDateTime(d.latestUpdateTime)}</td>
                 <td>${d.latestLocation || '-'}</td>
-
             </tr>
-
         `).join('');
     }
 
-    async function loadEmergency(id) {
+    async function selectBiometric(id) {
+        const res = await api('/api/biometric-data/' + id);
 
-        const res =
-            await api('/api/biometric-data/' + id);
+        const selected = res.data?.biometricData || biometricList.find(b => b.id === id);
+        const emergencyList = res.data?.emergencyRecords || [];
 
-        const emergencyList =
-            res.data.emergencyRecords || [];
+        fillBiometricForm(selected);
+        renderEmergency(emergencyList);
+    }
 
-        const selected =
-            biometricList.find(b => b.id === id);
+    function fillBiometricForm(d) {
+        if (!d) return;
 
-        document.getElementById('selectedInfo').innerHTML = selected
-            ? `
-        <div style="color:#7b8794;">사용자</div>
-        <div style="white-space:nowrap;">
-            <b>${selected.userName || '-'}</b>
-        </div>
+        document.getElementById('biometricId').value = d.id || '';
+        document.getElementById('branchName').value = d.branchName || '-';
+        document.getElementById('deviceId').value = d.deviceId || '';
+        document.getElementById('modelName').value = d.modelName || '-';
+        document.getElementById('battery').value = d.battery || '-';
 
-        <div style="color:#7b8794;">디바이스ID</div>
-        <div style="white-space:nowrap;">
-            ${selected.deviceId || '-'}
-        </div>
+        document.getElementById('userName').value = d.userName || '';
+        document.getElementById('latestUseDate').value = d.latestUseDate || '';
+        document.getElementById('latestUseTime').value = d.latestUseTime || '';
+        document.getElementById('useTimePerDay').value = d.useTimePerDay || '';
+        document.getElementById('breathPerDay').value = d.breathPerDay || '';
+        document.getElementById('stepsPerDay').value = d.stepsPerDay || '';
+        document.getElementById('totalUseTime').value = d.totalUseTime || '';
+        document.getElementById('totalSteps').value = d.totalSteps || '';
 
-        <div style="color:#7b8794;">호흡수</div>
-        <div style="white-space:nowrap;">
-            ${selected.breathPerDay || '-'}
-        </div>
+        document.getElementById('emergencyYn').value = d.emergencyYn || 'N';
+        document.getElementById('emergencyRecordTime').value = formatDateTime(d.emergencyRecordTime);
+        document.getElementById('latestUpdateTime').value = formatDateTime(d.latestUpdateTime);
+        document.getElementById('latestLocation').value = d.latestLocation || '';
+    }
 
-        <div style="color:#7b8794;">걸음수</div>
-        <div style="white-space:nowrap;">
-            ${selected.stepsPerDay || '-'}
-        </div>
-
-        <div style="color:#7b8794;">최근 위치</div>
-        <div style="white-space:nowrap;">
-            ${selected.latestLocation || '-'}
-        </div>
-      `
-            : `
-        <div style="grid-column:1 / span 2; color:#999;">
-            선택된 생체정보가 없습니다.
-        </div>
-      `;
-
-        const body =
-            document.getElementById('emergencyBody');
+    function renderEmergency(emergencyList) {
+        const body = document.getElementById('emergencyBody');
 
         if (!emergencyList.length) {
-
             body.innerHTML = `
-        <tr>
-            <td colspan="4"
-                style="
-                    text-align:center;
-                    padding:30px;
-                    color:#999;
-                ">
-                응급기록 없음
-            </td>
-        </tr>
-    `;
-
+                <tr>
+                    <td colspan="4" style="text-align:center; padding:30px; color:#999;">
+                        응급기록 없음
+                    </td>
+                </tr>
+            `;
             return;
         }
 
         body.innerHTML = emergencyList.map(e => `
+            <tr>
+                <td>${e.emergencyType || '-'}</td>
+                <td>${formatDateTime(e.emergencyRecordTime)}</td>
+                <td>${e.actionContent || '-'}</td>
+                <td>${e.actionResult || '-'}</td>
+            </tr>
+        `).join('');
+    }
 
-    <tr>
+    async function saveBiometricData() {
+        const deviceId = document.getElementById('deviceId').value;
 
-        <td>${e.emergencyType || '-'}</td>
-        <td>${e.emergencyRecordTime || '-'}</td>
-        <td>${e.actionContent || '-'}</td>
-        <td>${e.actionResult || '-'}</td>
+        if (!deviceId) {
+            toast('디바이스ID가 필요합니다.', 'error');
+            return;
+        }
 
-    </tr>
+        const body = {
+            deviceId: Number(deviceId),
+            userName: document.getElementById('userName').value.trim(),
+            latestUseDate: document.getElementById('latestUseDate').value,
+            latestUseTime: document.getElementById('latestUseTime').value,
+            useTimePerDay: document.getElementById('useTimePerDay').value,
+            breathPerDay: document.getElementById('breathPerDay').value,
+            stepsPerDay: document.getElementById('stepsPerDay').value,
+            totalUseTime: document.getElementById('totalUseTime').value,
+            totalSteps: document.getElementById('totalSteps').value,
+            latestLocation: document.getElementById('latestLocation').value
+        };
 
-`).join('');
+        const res = await api('/api/biometric-data', 'POST', body);
+
+        if (res.success) {
+            toast('저장 완료');
+            await loadBiometricData();
+        } else {
+            toast(res.error?.message || '저장 실패', 'error');
+        }
+    }
+
+    async function deleteSelectedBiometric() {
+        const ids = getChecked();
+
+        if (!ids.length) {
+            toast('삭제할 생체정보를 선택하세요.', 'error');
+            return;
+        }
+
+        if (!confirm('선택한 생체정보를 삭제하시겠습니까?')) return;
+
+        for (const id of ids) {
+            await api(`/api/biometric-data/${id}`, 'DELETE');
+        }
+
+        toast('삭제 완료');
+        await loadBiometricData();
+        resetForm();
+    }
+
+    function resetForm() {
+        [
+            'biometricId', 'branchName', 'deviceId', 'modelName', 'battery',
+            'userName', 'latestUseDate', 'latestUseTime', 'useTimePerDay',
+            'breathPerDay', 'stepsPerDay', 'totalUseTime', 'totalSteps',
+            'emergencyYn', 'emergencyRecordTime', 'latestUpdateTime', 'latestLocation'
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        document.getElementById('emergencyBody').innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center; padding:30px; color:#999;">
+                    생체정보를 선택하면 응급기록이 표시됩니다.
+                </td>
+            </tr>
+        `;
+    }
+
+    function getChecked() {
+        return [...document.querySelectorAll('.ck:checked')]
+            .map(c => Number(c.value));
     }
 
     function filterData() {
+        const field = document.getElementById('searchField').value;
+        const keyword = document.getElementById('searchKeyword').value.toLowerCase();
 
-        const keyword =
-            document.getElementById('searchKeyword')
-                .value
-                .toLowerCase();
+        if (!keyword) {
+            renderTable(biometricList);
+            return;
+        }
 
-        const filtered =
-            biometricList.filter(d =>
-                (d.userName || '')
-                    .toLowerCase()
-                    .includes(keyword)
-            );
+        const filtered = biometricList.filter(d => {
+            if (field === 'all') {
+                return (
+                    String(d.branchName || '').toLowerCase().includes(keyword) ||
+                    String(d.deviceId || '').toLowerCase().includes(keyword) ||
+                    String(d.modelName || '').toLowerCase().includes(keyword) ||
+                    String(d.userName || '').toLowerCase().includes(keyword)
+                );
+            }
+
+            return String(d[field] || '').toLowerCase().includes(keyword);
+        });
 
         renderTable(filtered);
     }
 
-    loadBiometricData();
+    function filterByModel(modelName) {
+        const filtered = biometricList.filter(d =>
+            String(d.modelName || '').includes(modelName)
+        );
 
+        renderTable(filtered);
+    }
+
+    function sortData() {
+        const field = document.getElementById('sortField').value;
+        const direction = document.getElementById('sortDirection').value;
+
+        const sorted = [...biometricList].sort((a, b) => {
+            const av = String(a[field] || '');
+            const bv = String(b[field] || '');
+
+            return direction === 'asc'
+                ? av.localeCompare(bv)
+                : bv.localeCompare(av);
+        });
+
+        renderTable(sorted);
+    }
+
+    function formatDateTime(value) {
+        if (!value) return '-';
+        return String(value).replace('T', ' ');
+    }
+
+    loadBiometricData();
 </script>
 
 </body>

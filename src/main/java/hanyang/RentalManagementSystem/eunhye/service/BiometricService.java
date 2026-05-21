@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -41,7 +42,6 @@ public class BiometricService {
                 );
 
         Map<String, Object> data = new LinkedHashMap<>();
-
         data.put("biometricData",
                 biometricPage.getContent().stream().map(this::toBiometricMap).toList());
 
@@ -63,7 +63,6 @@ public class BiometricService {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("biometricData", toBiometricMap(biometricData));
-
         data.put("emergencyRecords",
                 emergencyRecords.stream().map(this::toEmergencyMap).toList());
 
@@ -131,7 +130,6 @@ public class BiometricService {
                 emergencyRecordRepository.findAll(PageRequest.of(page - 1, size));
 
         Map<String, Object> data = new LinkedHashMap<>();
-
         data.put("emergencyRecords",
                 emergencyPage.getContent().stream().map(this::toEmergencyMap).toList());
 
@@ -192,15 +190,8 @@ public class BiometricService {
         Map<String, Integer> summary = new LinkedHashMap<>();
 
         for (BiometricData biometricData : biometricDataList) {
-
-            String modelName =
-                    biometricData.getDevice()
-                            .getModelVersion()
-                            .getModel()
-                            .getModelName();
-
-            summary.put(modelName,
-                    summary.getOrDefault(modelName, 0) + 1);
+            String modelName = getModelName(biometricData.getDevice());
+            summary.put(modelName, summary.getOrDefault(modelName, 0) + 1);
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -213,8 +204,23 @@ public class BiometricService {
 
         Map<String, Object> map = new LinkedHashMap<>();
 
+        Device device = biometricData.getDevice();
+
+        List<EmergencyRecord> emergencyRecords =
+                emergencyRecordRepository.findAllByBiometricDataId(biometricData.getId());
+
+        EmergencyRecord latestEmergencyRecord = emergencyRecords.stream()
+                .filter(e -> e.getEmergencyRecordTime() != null)
+                .max(Comparator.comparing(EmergencyRecord::getEmergencyRecordTime))
+                .orElse(null);
+
         map.put("id", biometricData.getId());
-        map.put("deviceId", biometricData.getDevice().getId());
+
+        map.put("branchName", getBranchName(device));
+        map.put("deviceId", device != null ? device.getId() : null);
+        map.put("modelName", getModelName(device));
+        map.put("battery", getBattery(device));
+
         map.put("userName", biometricData.getUserName());
         map.put("latestUseDate", biometricData.getLatestUseDate());
         map.put("latestUseTime", biometricData.getLatestUseTime());
@@ -223,6 +229,11 @@ public class BiometricService {
         map.put("stepsPerDay", biometricData.getStepsPerDay());
         map.put("totalUseTime", biometricData.getTotalUseTime());
         map.put("totalSteps", biometricData.getTotalSteps());
+
+        map.put("emergencyYn", latestEmergencyRecord != null ? "Y" : "N");
+        map.put("emergencyRecordTime",
+                latestEmergencyRecord != null ? latestEmergencyRecord.getEmergencyRecordTime() : null);
+
         map.put("latestUpdateTime", biometricData.getLatestUpdateTime());
         map.put("latestLocation", biometricData.getLatestLocation());
 
@@ -234,7 +245,10 @@ public class BiometricService {
         Map<String, Object> map = new LinkedHashMap<>();
 
         map.put("id", emergencyRecord.getId());
-        map.put("biometricDataId", emergencyRecord.getBiometricData().getId());
+        map.put("biometricDataId",
+                emergencyRecord.getBiometricData() != null
+                        ? emergencyRecord.getBiometricData().getId()
+                        : null);
         map.put("emergencyType", emergencyRecord.getEmergencyType());
         map.put("emergencyRecordTime", emergencyRecord.getEmergencyRecordTime());
         map.put("actionContent", emergencyRecord.getActionContent());
@@ -243,15 +257,103 @@ public class BiometricService {
         return map;
     }
 
+    private String getModelName(Device device) {
+        try {
+            if (device == null ||
+                    device.getModelVersion() == null ||
+                    device.getModelVersion().getModel() == null) {
+                return "-";
+            }
+
+            return device.getModelVersion().getModel().getModelName();
+        } catch (Exception e) {
+            return "-";
+        }
+    }
+
+    private String getBranchName(Device device) {
+        String branchName = firstNonBlank(
+                callGetterAsString(device, "getBranchName"),
+                callGetterAsString(device, "getCenterName"),
+                callGetterAsString(device, "getLocationName")
+        );
+
+        if (branchName != null) {
+            return branchName;
+        }
+
+        Object branch = firstNonNull(
+                callGetter(device, "getBranch"),
+                callGetter(device, "getCenter"),
+                callGetter(device, "getRentalBranch")
+        );
+
+        return firstNonBlank(
+                callGetterAsString(branch, "getBranchName"),
+                callGetterAsString(branch, "getCenterName"),
+                callGetterAsString(branch, "getName")
+        );
+    }
+
+    private String getBattery(Device device) {
+        String battery = firstNonBlank(
+                callGetterAsString(device, "getBattery"),
+                callGetterAsString(device, "getBatteryLevel"),
+                callGetterAsString(device, "getBatteryPercent"),
+                callGetterAsString(device, "getRemainBattery")
+        );
+
+        return battery != null ? battery : "-";
+    }
+
+    private Object callGetter(Object target, String methodName) {
+        try {
+            if (target == null) return null;
+
+            Method method = target.getClass().getMethod(methodName);
+            return method.invoke(target);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String callGetterAsString(Object target, String methodName) {
+        Object value = callGetter(target, methodName);
+        return value == null ? null : value.toString();
+    }
+
+    private Object firstNonNull(Object... values) {
+        for (Object value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+
+        return "-";
+    }
+
     private Long toLong(Object value) {
-        if (value == null) {
+        if (value == null || value.toString().isBlank()) {
             throw new CustomException("INVALID_REQUEST", "필수 값이 누락되었습니다.");
         }
+
         return Long.valueOf(value.toString());
     }
 
     private Integer toInteger(Object value) {
-        return value == null ? null : Integer.valueOf(value.toString());
+        return value == null || value.toString().isBlank()
+                ? null
+                : Integer.valueOf(value.toString());
     }
 
     private String toString(Object value) {

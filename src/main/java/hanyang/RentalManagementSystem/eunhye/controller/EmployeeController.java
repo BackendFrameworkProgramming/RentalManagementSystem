@@ -28,7 +28,8 @@ public class EmployeeController {
     public ResponseEntity<CommonResponse<Map<String, Object>>> createEmployee(
             @RequestBody Map<String, Object> body
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(employeeService.createEmployee(body));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(employeeService.createEmployee(body));
     }
 
     @PatchMapping("/api/employees/{id}")
@@ -40,7 +41,9 @@ public class EmployeeController {
     }
 
     @DeleteMapping("/api/employees/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> deleteEmployee(@PathVariable Long id) {
+    public ResponseEntity<CommonResponse<Map<String, Object>>> deleteEmployee(
+            @PathVariable Long id
+    ) {
         return ResponseEntity.ok(employeeService.deleteEmployee(id));
     }
 }
