@@ -53,7 +53,12 @@
             </select>
 
             <span class="total-info">총 <b id="totalEl">0</b>건</span>
-            <span class="per-page">20 건씩 보기</span>
+
+            <select id="pageSize" onchange="loadRentals(1)" style="padding:4px 6px;font-size:12px;">
+                <option value="10">10건씩 보기</option>
+                <option value="20" selected>20건씩 보기</option>
+                <option value="50">50건씩 보기</option>
+            </select>
         </div>
 
         <div class="table-wrap" style="overflow-x: auto;">
@@ -90,7 +95,7 @@
 
 <script th:src="@{/js/common.js}"></script>
 <script>
-    let curPage = 1, curBranch = null, branches = [];
+    let curPage = 1, curBranch = null, curSize = 20, branches = [];
 
     function formatStatus(status) {
         const map = {
@@ -148,12 +153,16 @@
 
     async function loadRentals(page) {
         curPage = page || 1;
+        // 💡 Number() 캐스팅 및 curSize 변수 업데이트
+        curSize = Number(document.getElementById('pageSize').value);
+
         const p = new URLSearchParams({
             searchField: document.getElementById('sf').value,
             searchKeyword: document.getElementById('sk').value,
             orderField: document.getElementById('orderField').value,
             orderType: document.getElementById('orderType').value,
-            page: curPage, size: 20
+            page: curPage,
+            size: curSize // 💡 curSize 적용
         });
 
         if (document.getElementById('sf').value && document.getElementById('sk').value) {
@@ -173,7 +182,7 @@
         if (!rows.length) {
             tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:30px;color:#aaa">데이터가 없습니다.</td></tr>';
         } else {
-            let i = (curPage - 1) * 20;
+            let i = (curPage - 1) * curSize; // 💡 순번 계산에 curSize 적용
             tbody.innerHTML = rows.map(d => `<tr>
                 <td class="center"><input type="checkbox" class="ck" value="${d.id}"></td>
                 <td class="center">${++i}</td>
@@ -232,7 +241,7 @@
         toast('삭제 완료'); loadRentals(curPage); loadBranches();
     }
 
-    function saveAll() {toast('저장 완료');}
+    function saveAll() { toast('저장 로직은 백엔드 협의 후 연동예정입니다.'); }
 
     loadBranches();
     loadRentals(1);
