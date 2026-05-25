@@ -208,4 +208,26 @@ public class RentalService {
                     );
                 }).collect(Collectors.toList());
     }
+
+    // 지점별 가용 디바이스 조회 로직 (상태가 RENTAL_READY이거나 점검 중이 아닌 기기 필터링)
+    public CommonResponse<List<Map<String, Object>>> getAvailableDevicesByBranch(Long branchId) {
+        List<Map<String, Object>> data = deviceRepository.findAllByIsDeletedFalse().stream()
+                .filter(d -> d.getBranch() != null && d.getBranch().getId().equals(branchId))
+                .filter(d -> "RENTAL_READY".equals(d.getStatus())) // 💡 임대 가능한 대기 상태인 기기만 필터링
+                .map(d -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", d.getId());
+                    map.put("deviceId", d.getDeviceId());
+                    map.put("status", d.getStatus());
+                    if (d.getModelVersion() != null && d.getModelVersion().getModel() != null) {
+                        map.put("modelName", d.getModelVersion().getModel().getModelName());
+                    } else {
+                        map.put("modelName", "-");
+                    }
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return CommonResponse.success(data);
+    }
 }

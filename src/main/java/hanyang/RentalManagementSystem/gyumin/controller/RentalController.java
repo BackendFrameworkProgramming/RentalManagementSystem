@@ -44,6 +44,11 @@ public class RentalController {
         return ResponseEntity.ok(rentalService.getUserRentals(id, request));
     }
 
+    @GetMapping("/branches/{id}/available-devices")
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAvailableDevicesByBranch(@PathVariable Long id) {
+        return ResponseEntity.ok(rentalService.getAvailableDevicesByBranch(id));
+    }
+
     @GetMapping("/rentals/summary/by-branch")
     public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getRentalSummaryByBranch() {
         return ResponseEntity.ok(CommonResponse.success(rentalService.getRentalSummaryByBranch()));

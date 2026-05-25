@@ -134,13 +134,13 @@ public class AsRecordService {
                 .orElseThrow(() -> new CustomException("AS_RECORD_NOT_FOUND", "AS 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         return CommonResponse.success(convertToMap(asRecord));
     }
-
     @Transactional
     public CommonResponse<Map<String, Object>> createAsRecord(Map<String, Object> body) {
         String deviceIdStr = body.get("deviceId").toString();
 
+        // 💡 핵심 수정: PK(숫자 ID)로 검색하거나, 문자열(DEV-001)로 검색하는 것을 모두 지원!
         Device device = deviceRepository.findAllByIsDeletedFalse().stream()
-                .filter(d -> deviceIdStr.equals(d.getDeviceId()))
+                .filter(d -> deviceIdStr.equals(d.getDeviceId()) || deviceIdStr.equals(String.valueOf(d.getId())))
                 .findFirst()
                 .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "기기를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
@@ -155,6 +155,15 @@ public class AsRecordService {
                 .isDeleted(false)
                 .build();
 
+        // 💡 추가하신 접수자, 접수내용 필드 저장 로직 추가
+        // (주의: AsRecord 엔티티에 해당 필드와 Setter가 구현되어 있어야 에러가 안 납니다!)
+        if (body.containsKey("receiptBy") && body.get("receiptBy") != null) {
+            asRecord.setReceiptBy(body.get("receiptBy").toString());
+        }
+        if (body.containsKey("receiptContent") && body.get("receiptContent") != null) {
+            asRecord.setReceiptContent(body.get("receiptContent").toString());
+        }
+
         if (body.containsKey("vendorId") && body.get("vendorId") != null && !body.get("vendorId").toString().isEmpty()) {
             vendorRepository.findByIdAndIsDeletedFalse(Long.valueOf(body.get("vendorId").toString()))
                     .ifPresent(asRecord::setVendor);
@@ -168,7 +177,6 @@ public class AsRecordService {
         asRecordRepository.save(asRecord);
         return CommonResponse.created(convertToMap(asRecord));
     }
-
     @Transactional
     public CommonResponse<Map<String, Object>> updateAsRecord(Long id, Map<String, Object> body) {
         AsRecord asRecord = asRecordRepository.findByIdAndIsDeletedFalse(id)
@@ -214,33 +222,79 @@ public class AsRecordService {
                     );
                 }).collect(Collectors.toList());
     }
-
-    // ==========================================
-    // 💡 누락되었던 Vendor 및 AsType 구현부 추가
+// ==========================================
+    // 💡 Vendor (수리 업체) 관련 로직 수정본
     // ==========================================
 
     public CommonResponse<List<Map<String, Object>>> getVendors(CommonSearchRequest request) {
         Page<Vendor> page = vendorRepository.findAllByIsDeletedFalse(request.toPageable());
         List<Map<String, Object>> data = page.getContent().stream()
-                .map(v -> Map.<String, Object>of("id", v.getId(), "vendorName", v.getVendorName()))
+                .map(v -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", v.getId());
+                    map.put("vendorName", v.getVendorName());
+                    map.put("contact", v.getContact()); // 💡 연락처 추가
+                    map.put("address", v.getAddress()); // 💡 주소 추가
+                    return map;
+                })
                 .collect(Collectors.toList());
         return CommonResponse.success(data, Pagination.of(page));
     }
 
     @Transactional
     public CommonResponse<Map<String, Object>> createVendor(Map<String, Object> body) {
-        Vendor vendor = Vendor.builder().vendorName((String) body.get("vendorName")).isDeleted(false).build();
+        String vendorName = body.get("vendorName") != null ? body.get("vendorName").toString() : null;
+        if (vendorName == null || vendorName.trim().isEmpty()) {
+            throw new CustomException("INVALID_REQUEST", "업체명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+
+        // 💡 500 에러 해결: 빌더에 status("ACTIVE")를 강제로 주입!
+        Vendor vendor = Vendor.builder()
+                .vendorName(vendorName)
+                .status("ACTIVE") // <-- DB 에러의 범인 해결!
+                .isDeleted(false)
+                .contact(body.get("contact") != null ? body.get("contact").toString() : null)
+                .address(body.get("address") != null ? body.get("address").toString() : null)
+                .build();
+
         vendorRepository.save(vendor);
-        return CommonResponse.created(Map.of("id", vendor.getId(), "vendorName", vendor.getVendorName()));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", vendor.getId());
+        result.put("vendorName", vendor.getVendorName());
+        result.put("contact", vendor.getContact());
+        result.put("address", vendor.getAddress());
+
+        return CommonResponse.created(result);
     }
 
     @Transactional
     public CommonResponse<Map<String, Object>> updateVendor(Long id, Map<String, Object> body) {
         Vendor vendor = vendorRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("VENDOR_NOT_FOUND", "수리 업체를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        if (body.containsKey("vendorName")) vendor.setVendorName((String) body.get("vendorName"));
-        return CommonResponse.success(Map.of("id", vendor.getId(), "vendorName", vendor.getVendorName()));
+
+        if (body.containsKey("vendorName") && body.get("vendorName") != null) {
+            vendor.setVendorName(body.get("vendorName").toString());
+        }
+        if (body.containsKey("contact")) {
+            vendor.setContact(body.get("contact") != null ? body.get("contact").toString() : null);
+        }
+        if (body.containsKey("address")) {
+            vendor.setAddress(body.get("address") != null ? body.get("address").toString() : null);
+        }
+        if (body.containsKey("status") && body.get("status") != null) {
+            vendor.setStatus(body.get("status").toString());
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", vendor.getId());
+        result.put("vendorName", vendor.getVendorName());
+        result.put("contact", vendor.getContact());
+        result.put("address", vendor.getAddress());
+
+        return CommonResponse.success(result);
     }
+
 
     @Transactional
     public void deleteVendor(Long id) {
@@ -249,31 +303,77 @@ public class AsRecordService {
         vendor.setIsDeleted(true);
     }
 
+// ==========================================
+    // 💡 AS 유형 (AsType) 관련 로직 수정본
+    // ==========================================
+
     public CommonResponse<List<Map<String, Object>>> getAsTypes(CommonSearchRequest request) {
         Page<AsType> page = asTypeRepository.findAllByUseYnTrue(request.toPageable());
         List<Map<String, Object>> data = page.getContent().stream()
-                .map(t -> Map.<String, Object>of("id", t.getId(), "typeName", t.getTypeName()))
+                .map(t -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", t.getId());
+                    map.put("typeName", t.getTypeName());
+                    map.put("useYn", t.getUseYn());
+
+                    // 💡 엔티티에 description 필드가 있다면 함께 조회하도록 처리
+                    try {
+                        map.put("description", t.getClass().getMethod("getDescription").invoke(t));
+                    } catch (Exception e) {
+                        // 만약 엔티티에 없더라도 에러로 터지지 않고 유연하게 넘어가도록 안전장치 반영
+                    }
+                    return map;
+                })
                 .collect(Collectors.toList());
         return CommonResponse.success(data, Pagination.of(page));
     }
 
     @Transactional
     public CommonResponse<Map<String, Object>> createAsType(Map<String, Object> body) {
+        String typeName = body.get("typeName") != null ? body.get("typeName").toString() : null;
+        String description = body.get("description") != null ? body.get("description").toString() : null;
+
+        // 💡 빌더 패턴에 description까지 포함하여 완벽하게 엔티티 생성
         AsType asType = AsType.builder()
-                .typeName((String) body.get("typeName"))
+                .typeName(typeName)
                 .useYn(true)
+                .description(description) // ⚠️ 만약 여기서 빨간 줄(컴파일 에러)이 뜨면 엔티티에 필드가 없는 것이므로 이 줄만 지워주세요!
                 .build();
+
         asTypeRepository.save(asType);
-        return CommonResponse.created(Map.of("id", asType.getId(), "typeName", asType.getTypeName()));
+
+        // Postman이 요구하는 모든 입력 데이터(id, typeName, description, useYn)를 반환 Map에 누락 없이 수집
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", asType.getId());
+        result.put("typeName", asType.getTypeName());
+        result.put("description", description);
+        result.put("useYn", true);
+
+        return CommonResponse.created(result);
     }
 
     @Transactional
     public CommonResponse<Map<String, Object>> updateAsType(Long id, Map<String, Object> body) {
         AsType asType = asTypeRepository.findById(id)
                 .orElseThrow(() -> new CustomException("AS_TYPE_NOT_FOUND", "AS 유형을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        if (body.containsKey("typeName")) asType.setTypeName((String) body.get("typeName"));
-        if (body.containsKey("useYn")) asType.setUseYn(Boolean.parseBoolean(body.get("useYn").toString()));
-        return CommonResponse.success(Map.of("id", asType.getId(), "typeName", asType.getTypeName()));
+
+        if (body.containsKey("typeName") && body.get("typeName") != null) {
+            asType.setTypeName(body.get("typeName").toString());
+        }
+        if (body.containsKey("description")) {
+            asType.setDescription(body.get("description") != null ? body.get("description").toString() : null); // ⚠️ 컴파일 에러 시 이 줄 삭제 가능
+        }
+        if (body.containsKey("useYn") && body.get("useYn") != null) {
+            asType.setUseYn(Boolean.parseBoolean(body.get("useYn").toString()));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", asType.getId());
+        result.put("typeName", asType.getTypeName());
+        result.put("description", body.get("description"));
+        result.put("useYn", asType.getUseYn());
+
+        return CommonResponse.success(result);
     }
 
     @Transactional

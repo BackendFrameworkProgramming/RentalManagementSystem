@@ -8,14 +8,42 @@
 <div class="page-wrapper">
 
     <div class="left-panel">
-        <div class="left-panel-header">팀</div>
+        <div class="left-panel-header">부서&gt;팀</div>
+
         <div class="left-panel-search">
-            <input type="text" id="teamSearch" placeholder="검색" oninput="filterTeam()">
+            <input type="text" id="teamSearch" placeholder="Search..." oninput="filterTeam()">
         </div>
+
         <div class="left-panel-list" id="teamList">
-            <div class="left-panel-item active" onclick="selectTeam(1, '기본팀')">
-                <span>기본팀</span>
-                <span class="count">-</span>
+            <div class="left-panel-item active" onclick="selectTeam(1, '관리자', '관리자', this)">
+                <span>▾ 관리자</span>
+            </div>
+            <div class="left-panel-item child active" onclick="selectTeam(1, '관리자', '관리자', this)">
+                <span>ㆍ관리자</span>
+            </div>
+
+            <div class="left-panel-item" onclick="toggleGroup(this)">
+                <span>▾ 경영</span>
+            </div>
+            <div class="left-panel-item child" onclick="selectTeam(2, '경영', '경영지원', this)">
+                <span>ㆍ경영지원</span>
+            </div>
+            <div class="left-panel-item child" onclick="selectTeam(3, '경영', '경영관리', this)">
+                <span>ㆍ경영관리</span>
+            </div>
+
+            <div class="left-panel-item" onclick="toggleGroup(this)">
+                <span>▾ 마케팅</span>
+            </div>
+            <div class="left-panel-item child" onclick="selectTeam(4, '마케팅', '마케팅', this)">
+                <span>ㆍ마케팅</span>
+            </div>
+
+            <div class="left-panel-item" onclick="toggleGroup(this)">
+                <span>▾ 생산</span>
+            </div>
+            <div class="left-panel-item child" onclick="selectTeam(5, '생산', '생산', this)">
+                <span>ㆍ생산</span>
             </div>
         </div>
     </div>
@@ -26,7 +54,7 @@
             <div class="toolbar-left">
                 <div class="breadcrumb">
                     <span class="refresh" onclick="loadEmployees()">⟳</span>
-                    <span id="breadcrumb">기본팀 > 센터 담당직원</span>
+                    <span id="breadcrumb">경영 &gt; 경영지원팀 직원</span>
                 </div>
             </div>
 
@@ -39,37 +67,48 @@
 
         <div class="search-bar">
             <select id="searchField">
-                <option value="empName">직원명</option>
-                <option value="empNo">사번</option>
+                <option value="all">통합검색</option>
+                <option value="empName">이름</option>
+                <option value="empNo">사원번호</option>
                 <option value="jobTitle">직급</option>
+                <option value="employmentType">근무형태</option>
                 <option value="workStatus">근무상태</option>
             </select>
 
-            <input type="text" id="searchKeyword" placeholder="검색어 입력 후 엔터"
-                   onkeydown="if(event.key==='Enter')filterEmployees()">
+            <input type="text"
+                   id="searchKeyword"
+                   placeholder="검색어 입력 후 엔터"
+                   onkeydown="if(event.key==='Enter') filterEmployees()">
 
             <button class="search-btn" onclick="filterEmployees()">🔍</button>
 
-            <span class="total-info">총 <b id="totalEl">0</b>건</span>
-            <span class="per-page">10 건씩 보기</span>
+            <span class="total-info">
+                총 <b id="totalEl">0</b>건
+            </span>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1.4fr 0.8fr; gap:12px; height:calc(100vh - 150px);">
+        <div style="
+            display:grid;
+            grid-template-columns: 1.4fr 0.8fr;
+            gap:12px;
+            height:calc(100vh - 150px);
+        ">
 
             <div class="table-wrap" style="height:100%; overflow:auto;">
                 <table class="grid">
                     <thead>
                     <tr>
-                        <th style="width:30px">
-                            <input type="checkbox" id="ckAll" onchange="toggleAll()">
-                        </th>
-                        <th>순번</th>
-                        <th>직원명</th>
-                        <th>사번</th>
+                        <th style="width:35px;">선택</th>
+                        <th>No</th>
+                        <th>이력</th>
+                        <th>근무형태</th>
+                        <th>이름</th>
+                        <th>사원번호</th>
+                        <th>부서</th>
+                        <th>팀</th>
                         <th>직급</th>
-                        <th>고용형태</th>
                         <th>근무상태</th>
-                        <th>상태변경일</th>
+                        <th>근무상태적용일</th>
                         <th>입사일</th>
                         <th>비고</th>
                     </tr>
@@ -104,17 +143,23 @@
                     <input type="hidden" id="empId">
 
                     <div class="form-group">
-                        <label>팀 ID</label>
-                        <input id="teamId" value="1">
+                        <label>부서</label>
+                        <input id="departmentName" value="경영" readonly>
                     </div>
 
                     <div class="form-group">
-                        <label>직원명</label>
+                        <label>팀</label>
+                        <input id="teamName" value="경영지원" readonly>
+                        <input type="hidden" id="teamId" value="2">
+                    </div>
+
+                    <div class="form-group">
+                        <label>이름</label>
                         <input id="empName">
                     </div>
 
                     <div class="form-group">
-                        <label>사번</label>
+                        <label>사원번호</label>
                         <input id="empNo">
                     </div>
 
@@ -124,21 +169,21 @@
                     </div>
 
                     <div class="form-group">
-                        <label>고용형태</label>
+                        <label>근무형태</label>
                         <select id="employmentType">
                             <option value="정규직">정규직</option>
                             <option value="계약직">계약직</option>
-                            <option value="파견직">파견직</option>
-                            <option value="인턴">인턴</option>
+                            <option value="일용직">일용직</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label>근무상태</label>
                         <select id="workStatus">
-                            <option value="재직">재직</option>
+                            <option value="근무">근무</option>
                             <option value="휴직">휴직</option>
-                            <option value="퇴직">퇴직</option>
+                            <option value="병가">병가</option>
+                            <option value="퇴사">퇴사</option>
                         </select>
                     </div>
 
@@ -152,22 +197,11 @@
                         <textarea id="remark" rows="3"></textarea>
                     </div>
 
-                    <button class="btn btn-save" onclick="saveEmployee()" style="width:100%; margin-top:8px;">
+                    <button class="btn btn-save"
+                            onclick="saveEmployee()"
+                            style="width:100%; margin-top:8px;">
                         저장
                     </button>
-                </div>
-
-                <div class="table-wrap"
-                     style="
-                        padding:12px;
-                        background:#fff;
-                        font-size:12px;
-                        color:#666;
-                        line-height:1.8;
-                     ">
-                    <b style="color:#2f3b52;">안내</b><br>
-                    직원 등록 시 부서는 선택한 팀의 부서로 자동 설정됩니다.<br>
-                    근무상태를 변경하면 상태변경일이 오늘 날짜로 자동 저장됩니다.
                 </div>
 
             </div>
@@ -178,17 +212,18 @@
 <script th:src="@{/js/common.js}"></script>
 
 <script>
-    let currentTeamId = 1;
-    let currentTeamName = '기본팀';
+    let currentTeamId = 2;
+    let currentDepartmentName = '경영';
+    let currentTeamName = '경영지원';
     let employeeList = [];
 
     async function loadEmployees() {
         const res = await api(`/api/teams/${currentTeamId}/employees?page=1&size=10`);
 
-        employeeList = res.data.employees || [];
+        employeeList = res.data?.employees || [];
 
         document.getElementById('totalEl').textContent =
-            res.pagination?.totalElements || 0;
+            res.pagination?.totalElements || employeeList.length;
 
         renderEmployees(employeeList);
     }
@@ -199,7 +234,7 @@
         if (!data.length) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="10" style="text-align:center;padding:30px;color:#999;">
+                    <td colspan="13" style="text-align:center;padding:30px;color:#999;">
                         데이터가 없습니다.
                     </td>
                 </tr>
@@ -213,10 +248,13 @@
                     <input type="checkbox" class="ck" value="${e.id}">
                 </td>
                 <td class="center">${i + 1}</td>
+                <td class="center">이력</td>
+                <td>${e.employmentType || '-'}</td>
                 <td>${e.empName || '-'}</td>
                 <td>${e.empNo || '-'}</td>
+                <td>${currentDepartmentName || e.departmentId || '-'}</td>
+                <td>${currentTeamName || e.teamId || '-'}</td>
                 <td>${e.jobTitle || '-'}</td>
-                <td>${e.employmentType || '-'}</td>
                 <td>${e.workStatus || '-'}</td>
                 <td>${e.workStatusDate || '-'}</td>
                 <td>${e.hireDate || '-'}</td>
@@ -231,11 +269,14 @@
 
         document.getElementById('empId').value = employee.id;
         document.getElementById('teamId').value = employee.teamId || currentTeamId;
+        document.getElementById('departmentName').value = currentDepartmentName;
+        document.getElementById('teamName').value = currentTeamName;
+
         document.getElementById('empName').value = employee.empName || '';
         document.getElementById('empNo').value = employee.empNo || '';
         document.getElementById('jobTitle').value = employee.jobTitle || '';
         document.getElementById('employmentType').value = employee.employmentType || '정규직';
-        document.getElementById('workStatus').value = employee.workStatus || '재직';
+        document.getElementById('workStatus').value = employee.workStatus || '근무';
         document.getElementById('hireDate').value = employee.hireDate || '';
         document.getElementById('remark').value = employee.remark || '';
     }
@@ -243,11 +284,14 @@
     function openEmployeeForm() {
         document.getElementById('empId').value = '';
         document.getElementById('teamId').value = currentTeamId;
+        document.getElementById('departmentName').value = currentDepartmentName;
+        document.getElementById('teamName').value = currentTeamName;
+
         document.getElementById('empName').value = '';
         document.getElementById('empNo').value = '';
         document.getElementById('jobTitle').value = '';
         document.getElementById('employmentType').value = '정규직';
-        document.getElementById('workStatus').value = '재직';
+        document.getElementById('workStatus').value = '근무';
         document.getElementById('hireDate').value = '';
         document.getElementById('remark').value = '';
     }
@@ -257,17 +301,22 @@
 
         const body = {
             teamId: Number(document.getElementById('teamId').value),
-            empName: document.getElementById('empName').value,
-            empNo: document.getElementById('empNo').value,
-            jobTitle: document.getElementById('jobTitle').value,
+            empName: document.getElementById('empName').value.trim(),
+            empNo: document.getElementById('empNo').value.trim(),
+            jobTitle: document.getElementById('jobTitle').value.trim(),
             employmentType: document.getElementById('employmentType').value,
             workStatus: document.getElementById('workStatus').value,
             hireDate: document.getElementById('hireDate').value,
             remark: document.getElementById('remark').value
         };
 
+        if (!body.teamId) {
+            toast('팀을 선택하세요.', 'error');
+            return;
+        }
+
         if (!body.empName) {
-            toast('직원명을 입력하세요.', 'error');
+            toast('이름을 입력하세요.', 'error');
             return;
         }
 
@@ -277,7 +326,7 @@
 
         if (res.success) {
             toast(id ? '수정 완료' : '등록 완료');
-            loadEmployees();
+            await loadEmployees();
             openEmployeeForm();
         } else {
             toast(res.error?.message || '저장 실패', 'error');
@@ -292,18 +341,15 @@
             return;
         }
 
+        if (!confirm('선택한 직원을 삭제하시겠습니까?')) return;
+
         for (const id of ids) {
             await api(`/api/employees/${id}`, 'DELETE');
         }
 
         toast('삭제 완료');
-        loadEmployees();
+        await loadEmployees();
         openEmployeeForm();
-    }
-
-    function toggleAll() {
-        document.querySelectorAll('.ck')
-            .forEach(c => c.checked = document.getElementById('ckAll').checked);
     }
 
     function getChecked() {
@@ -315,23 +361,47 @@
         const field = document.getElementById('searchField').value;
         const keyword = document.getElementById('searchKeyword').value.toLowerCase();
 
-        const filtered = employeeList.filter(e =>
-            String(e[field] || '').toLowerCase().includes(keyword)
-        );
+        if (!keyword) {
+            renderEmployees(employeeList);
+            return;
+        }
+
+        const filtered = employeeList.filter(e => {
+            if (field === 'all') {
+                return (
+                    String(e.empName || '').toLowerCase().includes(keyword) ||
+                    String(e.empNo || '').toLowerCase().includes(keyword) ||
+                    String(e.jobTitle || '').toLowerCase().includes(keyword) ||
+                    String(e.employmentType || '').toLowerCase().includes(keyword) ||
+                    String(e.workStatus || '').toLowerCase().includes(keyword)
+                );
+            }
+
+            return String(e[field] || '').toLowerCase().includes(keyword);
+        });
 
         renderEmployees(filtered);
     }
 
-    function selectTeam(id, name) {
+    function selectTeam(id, departmentName, teamName, el) {
         currentTeamId = id;
-        currentTeamName = name;
+        currentDepartmentName = departmentName;
+        currentTeamName = teamName;
 
         document.getElementById('breadcrumb').textContent =
-            `${name} > 센터 담당직원`;
+            `${departmentName} > ${teamName}팀 직원`;
 
         document.getElementById('teamId').value = id;
+        document.getElementById('departmentName').value = departmentName;
+        document.getElementById('teamName').value = teamName;
+
+        document.querySelectorAll('.left-panel-item')
+            .forEach(item => item.classList.remove('active'));
+
+        if (el) el.classList.add('active');
 
         loadEmployees();
+        openEmployeeForm();
     }
 
     function filterTeam() {
@@ -341,6 +411,10 @@
             el.style.display =
                 el.textContent.toLowerCase().includes(keyword) ? '' : 'none';
         });
+    }
+
+    function toggleGroup(el) {
+        el.classList.toggle('active');
     }
 
     loadEmployees();
