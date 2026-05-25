@@ -32,7 +32,7 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/api/auth/login", "/api/auth/refresh").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/system-logs", "/models", "/common-codes", "/users", "/design-history").hasRole("ADMIN")
-                .requestMatchers("/api/system-logs/**", "/api/models/**", "/api/common-codes/**", "/api/users/**").hasRole("ADMIN")
+                .requestMatchers("/api/system-logs/**", "/api/models/**", "/api/common-codes/**", "/api/users/**", "/api/design-history/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .exceptionHandling(ex -> ex

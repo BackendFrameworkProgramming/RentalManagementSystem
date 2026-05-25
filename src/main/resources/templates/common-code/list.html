@@ -49,12 +49,13 @@
 <div class="draw" id="detailDraw">
     <div class="draw-header"><span>코드 상세 등록</span><button class="draw-close" onclick="closeDraw('detailDraw')">&times;</button></div>
     <div class="draw-body">
+        <input type="hidden" id="editDetailId">
         <div class="form-section">
             <div class="form-group"><label>코드값 (영문) *</label><input id="dValue" placeholder="RENTING"></div>
             <div class="form-group"><label>코드명 (한글) *</label><input id="dName" placeholder="임대중"></div>
             <div class="form-group"><label>순서</label><input type="number" id="dSort" value="0"></div>
         </div>
-        <button class="btn btn-save" onclick="createDetail()">등록</button>
+        <button class="btn btn-save" onclick="saveDetail()">저장</button>
     </div>
 </div>
 <script th:src="@{/js/common.js}"></script>
@@ -84,18 +85,26 @@ async function loadDetails(id){
         <td class="center">${d.id}</td><td>${d.codeValue||'-'}</td><td>${d.codeName||'-'}</td>
         <td class="center">${d.sortOrder!=null?d.sortOrder:'-'}</td>
         <td class="center">${d.useYn!==undefined?(d.useYn?'<span class="badge badge-임대대기">Y</span>':'<span class="badge badge-폐기">N</span>'):'-'}</td>
-        <td class="center"><button class="btn btn-sm btn-delete" onclick="deleteDetail(${d.id})">삭제</button></td>
+        <td class="center"><button class="btn btn-sm" onclick="editDetail(${d.id},'${(d.codeValue||'').replace(/'/g,"\\'")}','${(d.codeName||'').replace(/'/g,"\\'")}',${d.sortOrder||0})">수정</button> <button class="btn btn-sm btn-delete" onclick="deleteDetail(${d.id})">삭제</button></td>
     </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa">코드 없음</td></tr>';
 }
+function editDetail(id,val,name,sort){
+    document.getElementById('dValue').value=val;document.getElementById('dName').value=name;document.getElementById('dSort').value=sort;
+    document.getElementById('editDetailId').value=id;
+    document.querySelector('#detailDraw .draw-header span').textContent='코드 상세 수정';
+    openDraw('detailDraw');
+}
 function clearGroupForm(){document.getElementById('gCode').value='';document.getElementById('gName').value='';document.getElementById('gDesc').value='';}
-function clearDetailForm(){document.getElementById('dValue').value='';document.getElementById('dName').value='';document.getElementById('dSort').value='0';}
+function clearDetailForm(){document.getElementById('dValue').value='';document.getElementById('dName').value='';document.getElementById('dSort').value='0';document.getElementById('editDetailId').value='';document.querySelector('#detailDraw .draw-header span').textContent='코드 상세 등록';}
 async function createGroup(){
     const r=await api('/api/common-codes','POST',{groupCode:document.getElementById('gCode').value,groupName:document.getElementById('gName').value,description:document.getElementById('gDesc').value});
     if(r.success){toast('그룹 등록 완료');closeDraw('groupDraw');loadGroups();}else toast(r.error?.message,'error');
 }
-async function createDetail(){
-    const r=await api(`/api/common-codes/${selectedGroupId}/details`,'POST',{codeValue:document.getElementById('dValue').value,codeName:document.getElementById('dName').value,sortOrder:Number(document.getElementById('dSort').value)});
-    if(r.success){toast('코드 등록 완료');closeDraw('detailDraw');loadDetails(selectedGroupId);}else toast(r.error?.message,'error');
+async function saveDetail(){
+    const editId=document.getElementById('editDetailId').value;
+    const body={codeValue:document.getElementById('dValue').value,codeName:document.getElementById('dName').value,sortOrder:Number(document.getElementById('dSort').value)};
+    const r=editId?await api(`/api/common-codes/details/${editId}`,'PATCH',body):await api(`/api/common-codes/${selectedGroupId}/details`,'POST',body);
+    if(r.success){toast(editId?'수정 완료':'등록 완료');closeDraw('detailDraw');loadDetails(selectedGroupId);}else toast(r.error?.message,'error');
 }
 async function deleteDetail(id){if(!confirm('삭제?'))return;const r=await api(`/api/common-codes/details/${id}`,'DELETE');if(r.success){toast('삭제');loadDetails(selectedGroupId);}else toast(r.error?.message,'error');}
 loadGroups();
