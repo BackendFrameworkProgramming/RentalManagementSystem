@@ -180,3 +180,16 @@ table.grid td.center{text-align:center}
 .dh-card-title{font-size:14px;font-weight:600;color:#2c3e50;margin-bottom:8px;line-height:1.4}
 .dh-card-foot{font-size:11px;color:#95a5a6}
 .change-row{background:#f8f9fa;border-radius:4px;padding:10px;margin-bottom:8px}
+
+/* === Tab Bar === */
+.tab-bar{display:flex;gap:0}
+.tab-btn{padding:6px 16px;border:1px solid #ddd;background:#f5f5f5;cursor:pointer;font-size:12px;font-weight:500;color:#666;border-radius:0;transition:all .15s}
+.tab-btn:first-child{border-radius:4px 0 0 4px}
+.tab-btn:last-child{border-radius:0 4px 4px 0}
+.tab-btn.active{background:#3498db;color:#fff;border-color:#3498db}
+.tab-btn:hover:not(.active){background:#e8e8e8}
+
+/* === Spec Section === */
+.spec-section{margin-bottom:20px}
+.spec-title{font-size:13px;font-weight:700;color:#2c3e50;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #3498db;display:inline-block}
+.spec-section code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:11px;color:#c0392b}

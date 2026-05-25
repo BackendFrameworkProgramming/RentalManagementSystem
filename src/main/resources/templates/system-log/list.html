@@ -6,16 +6,85 @@
 <div class="page-wrapper">
     <div class="main-content">
         <div class="toolbar">
-            <div class="toolbar-left"><div class="breadcrumb">시스템 에러 로그</div></div>
-            <div class="toolbar-right"><button class="btn" onclick="openDraw('specDraw')">에러코드 명세</button></div>
+            <div class="toolbar-left">
+                <div class="tab-bar">
+                    <button class="tab-btn active" onclick="switchTab('log',this)">에러 로그</button>
+                    <button class="tab-btn" onclick="switchTab('spec',this)">에러코드 명세</button>
+                </div>
+            </div>
         </div>
-        <div class="table-wrap">
-            <table class="grid">
-                <thead><tr><th>No</th><th>발생 화면</th><th>에러코드</th><th>메시지</th><th>URL</th><th>Method</th><th>IP</th><th>발생시간</th></tr></thead>
-                <tbody id="tbody"></tbody>
-            </table>
+
+        <!-- 탭1: 에러 로그 -->
+        <div id="tabLog">
+            <div class="table-wrap">
+                <table class="grid">
+                    <thead><tr><th>No</th><th>발생 화면</th><th>에러코드</th><th>메시지</th><th>URL</th><th>Method</th><th>IP</th><th>발생시간</th></tr></thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+            <div class="pagination-bar" id="paging"></div>
         </div>
-        <div class="pagination-bar" id="paging"></div>
+
+        <!-- 탭2: 에러코드 명세 -->
+        <div id="tabSpec" style="display:none;overflow-y:auto;padding:16px 20px;flex:1">
+            <div class="spec-section"><div class="spec-title">공통 에러</div>
+            <table class="grid"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th><th>발생 상황</th></tr></thead><tbody>
+            <tr><td><code>INTERNAL_SERVER_ERROR</code></td><td class="center">500</td><td>서버 내부 오류가 발생했습니다.</td><td>예상치 못한 서버 에러</td></tr>
+            <tr><td><code>NOT_FOUND</code></td><td class="center">404</td><td>페이지를 찾을 수 없습니다.</td><td>존재하지 않는 URL 접근</td></tr>
+            <tr><td><code>INVALID_REQUEST</code></td><td class="center">400</td><td>필수 값이 누락되었습니다.</td><td>요청 바디에 필수 필드 누락</td></tr>
+            <tr><td><code>BATCH_PARTIAL_FAILURE</code></td><td class="center">400</td><td>N건 처리 실패. 전체 롤백됨.</td><td>배치 API 일부 항목 실패</td></tr>
+            <tr><td><code>INVALID_STATUS_TRANSITION</code></td><td class="center">400</td><td>{현재} → {대상} 전이 불허</td><td>허용되지 않은 상태 변경 시도</td></tr>
+            <tr><td><code>UNAUTHORIZED</code></td><td class="center">401</td><td>인증이 필요합니다.</td><td>로그인하지 않고 접근</td></tr>
+            <tr><td><code>FORBIDDEN</code></td><td class="center">403</td><td>관리자 권한이 필요합니다.</td><td>일반 회원이 관리자 페이지 접근</td></tr>
+            <tr><td><code>LOGIN_FAILED</code></td><td class="center">401</td><td>아이디 또는 비밀번호가 올바르지 않습니다.</td><td>로그인 실패</td></tr>
+            <tr><td><code>DUPLICATE_LOGIN_ID</code></td><td class="center">409</td><td>이미 사용 중인 아이디입니다.</td><td>중복 아이디 등록 시도</td></tr>
+            </tbody></table></div>
+
+            <div class="spec-section"><div class="spec-title">디바이스 / 모델 / 파일</div>
+            <table class="grid"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th><th>발생 상황</th></tr></thead><tbody>
+            <tr><td><code>DEVICE_NOT_FOUND</code></td><td class="center">404</td><td>디바이스를 찾을 수 없습니다.</td><td>존재하지 않는 디바이스 ID</td></tr>
+            <tr><td><code>DEVICE_HAS_ACTIVE_RENTAL</code></td><td class="center">400</td><td>진행 중인 임대가 있어 삭제할 수 없습니다.</td><td>임대 중 디바이스 삭제 시도</td></tr>
+            <tr><td><code>MODEL_NOT_FOUND</code></td><td class="center">404</td><td>모델을 찾을 수 없습니다.</td><td>존재하지 않는 모델 ID</td></tr>
+            <tr><td><code>MODEL_VERSION_NOT_FOUND</code></td><td class="center">404</td><td>모델버전을 찾을 수 없습니다.</td><td>존재하지 않는 버전 ID</td></tr>
+            <tr><td><code>MODEL_VERSION_HAS_DEVICES</code></td><td class="center">400</td><td>연결된 디바이스가 있어 삭제할 수 없습니다.</td><td>디바이스 연결된 버전 삭제 시도</td></tr>
+            <tr><td><code>FILE_NOT_FOUND</code></td><td class="center">404</td><td>매뉴얼 파일이 없습니다.</td><td>파일 미등록 상태에서 다운로드</td></tr>
+            <tr><td><code>FILE_UPLOAD_FAILED</code></td><td class="center">500</td><td>파일 업로드 실패</td><td>파일 저장 중 서버 에러</td></tr>
+            </tbody></table></div>
+
+            <div class="spec-section"><div class="spec-title">지점 / 부서 / 팀</div>
+            <table class="grid"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th><th>발생 상황</th></tr></thead><tbody>
+            <tr><td><code>BRANCH_NOT_FOUND</code></td><td class="center">404</td><td>지점을 찾을 수 없습니다.</td><td>존재하지 않는 지점 ID</td></tr>
+            <tr><td><code>BRANCH_MANAGER_NOT_FOUND</code></td><td class="center">404</td><td>담당자를 찾을 수 없습니다.</td><td>존재하지 않는 담당자 ID</td></tr>
+            <tr><td><code>DEPARTMENT_NOT_FOUND</code></td><td class="center">404</td><td>부서를 찾을 수 없습니다.</td><td>존재하지 않는 부서 ID</td></tr>
+            <tr><td><code>DEPARTMENT_HAS_TEAMS</code></td><td class="center">400</td><td>하위 팀이 있어 삭제할 수 없습니다.</td><td>소속 팀 존재 시 삭제 시도</td></tr>
+            <tr><td><code>TEAM_NOT_FOUND</code></td><td class="center">404</td><td>팀을 찾을 수 없습니다.</td><td>존재하지 않는 팀 ID</td></tr>
+            <tr><td><code>TEAM_HAS_EMPLOYEES</code></td><td class="center">400</td><td>소속 직원이 있어 삭제할 수 없습니다.</td><td>소속 직원 존재 시 삭제 시도</td></tr>
+            </tbody></table></div>
+
+            <div class="spec-section"><div class="spec-title">임대 / AS / 직원 / 사용자 / 공통코드</div>
+            <table class="grid"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th><th>발생 상황</th></tr></thead><tbody>
+            <tr><td><code>RENTAL_NOT_FOUND</code></td><td class="center">404</td><td>임대 기록을 찾을 수 없습니다.</td><td>존재하지 않는 임대 ID</td></tr>
+            <tr><td><code>AS_RECORD_NOT_FOUND</code></td><td class="center">404</td><td>AS 기록을 찾을 수 없습니다.</td><td>존재하지 않는 AS ID</td></tr>
+            <tr><td><code>VENDOR_NOT_FOUND</code></td><td class="center">404</td><td>업체를 찾을 수 없습니다.</td><td>존재하지 않는 업체 ID</td></tr>
+            <tr><td><code>AS_TYPE_NOT_FOUND</code></td><td class="center">404</td><td>AS 유형을 찾을 수 없습니다.</td><td>존재하지 않는 유형 ID</td></tr>
+            <tr><td><code>EMPLOYEE_NOT_FOUND</code></td><td class="center">404</td><td>직원을 찾을 수 없습니다.</td><td>존재하지 않는 직원 ID</td></tr>
+            <tr><td><code>USER_NOT_FOUND</code></td><td class="center">404</td><td>사용자를 찾을 수 없습니다.</td><td>존재하지 않는 사용자 ID</td></tr>
+            <tr><td><code>CODE_GROUP_NOT_FOUND</code></td><td class="center">404</td><td>코드그룹을 찾을 수 없습니다.</td><td>존재하지 않는 코드그룹 ID</td></tr>
+            <tr><td><code>CODE_NOT_FOUND</code></td><td class="center">404</td><td>코드를 찾을 수 없습니다.</td><td>존재하지 않는 코드 ID</td></tr>
+            </tbody></table></div>
+
+            <div class="spec-section"><div class="spec-title">디바이스 상태 전이 규칙</div>
+            <p style="font-size:11px;color:#7f8c8d;margin-bottom:8px">허용된 전이가 아닌 경우 <code>INVALID_STATUS_TRANSITION</code> 에러 발생</p>
+            <table class="grid"><thead><tr><th>현재 상태</th><th>전이 가능 상태</th></tr></thead><tbody>
+            <tr><td><span class="badge badge-입고">INCOMING</span></td><td>RENTAL_READY</td></tr>
+            <tr><td><span class="badge badge-임대대기">RENTAL_READY</span></td><td>RENTING, AS_RECEIVED, INCOMING</td></tr>
+            <tr><td><span class="badge badge-임대중">RENTING</span></td><td>RENTAL_READY, AS_RECEIVED</td></tr>
+            <tr><td><span class="badge badge-AS접수">AS_RECEIVED</span></td><td>AS_PROGRESS, RENTAL_READY, DISPOSED</td></tr>
+            <tr><td><span class="badge badge-AS진행">AS_PROGRESS</span></td><td>RENTAL_READY, DISPOSED</td></tr>
+            <tr><td><span class="badge badge-반품">RETURNED</span></td><td>INCOMING</td></tr>
+            <tr><td><span class="badge badge-폐기">DISPOSED</span></td><td>(종단 상태)</td></tr>
+            </tbody></table></div>
+        </div>
     </div>
 </div>
 
@@ -26,71 +95,15 @@
     <div class="draw-body" id="detailBody"></div>
 </div>
 
-<!-- 에러코드 명세 Draw -->
-<div class="draw-overlay" id="specDrawOverlay" onclick="closeDraw('specDraw')"></div>
-<div class="draw" id="specDraw" style="width:700px">
-    <div class="draw-header"><span>에러코드 명세서</span><button class="draw-close" onclick="closeDraw('specDraw')">&times;</button></div>
-    <div class="draw-body" style="font-size:12px">
-        <div class="detail-section"><div class="detail-label">공통 에러</div>
-        <table class="grid" style="font-size:11px"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th></tr></thead><tbody>
-        <tr><td>INTERNAL_SERVER_ERROR</td><td>500</td><td>서버 내부 오류가 발생했습니다.</td></tr>
-        <tr><td>NOT_FOUND</td><td>404</td><td>페이지를 찾을 수 없습니다.</td></tr>
-        <tr><td>INVALID_REQUEST</td><td>400</td><td>필수 값이 누락되었습니다.</td></tr>
-        <tr><td>BATCH_PARTIAL_FAILURE</td><td>400</td><td>N건 처리 실패. 전체 롤백됨.</td></tr>
-        <tr><td>INVALID_STATUS_TRANSITION</td><td>400</td><td>{현재} → {대상} 전이 불허</td></tr>
-        <tr><td>UNAUTHORIZED</td><td>401</td><td>인증이 필요합니다.</td></tr>
-        <tr><td>FORBIDDEN</td><td>403</td><td>관리자 권한이 필요합니다.</td></tr>
-        <tr><td>LOGIN_FAILED</td><td>401</td><td>아이디 또는 비밀번호가 올바르지 않습니다.</td></tr>
-        <tr><td>DUPLICATE_LOGIN_ID</td><td>409</td><td>이미 사용 중인 아이디입니다.</td></tr>
-        </tbody></table></div>
-        <div class="detail-section"><div class="detail-label">디바이스 (화면1)</div>
-        <table class="grid" style="font-size:11px"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th></tr></thead><tbody>
-        <tr><td>DEVICE_NOT_FOUND</td><td>404</td><td>디바이스를 찾을 수 없습니다.</td></tr>
-        <tr><td>DEVICE_HAS_ACTIVE_RENTAL</td><td>400</td><td>진행 중인 임대가 있어 삭제할 수 없습니다.</td></tr>
-        </tbody></table></div>
-        <div class="detail-section"><div class="detail-label">모델</div>
-        <table class="grid" style="font-size:11px"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th></tr></thead><tbody>
-        <tr><td>MODEL_NOT_FOUND</td><td>404</td><td>모델을 찾을 수 없습니다.</td></tr>
-        <tr><td>MODEL_VERSION_NOT_FOUND</td><td>404</td><td>모델버전을 찾을 수 없습니다.</td></tr>
-        <tr><td>MODEL_VERSION_HAS_DEVICES</td><td>400</td><td>연결된 디바이스가 있어 삭제할 수 없습니다.</td></tr>
-        <tr><td>FILE_NOT_FOUND</td><td>404</td><td>매뉴얼 파일이 없습니다.</td></tr>
-        <tr><td>FILE_UPLOAD_FAILED</td><td>500</td><td>파일 업로드 실패</td></tr>
-        </tbody></table></div>
-        <div class="detail-section"><div class="detail-label">지점/부서/팀 (화면5,7)</div>
-        <table class="grid" style="font-size:11px"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th></tr></thead><tbody>
-        <tr><td>BRANCH_NOT_FOUND</td><td>404</td><td>지점을 찾을 수 없습니다.</td></tr>
-        <tr><td>BRANCH_MANAGER_NOT_FOUND</td><td>404</td><td>담당자를 찾을 수 없습니다.</td></tr>
-        <tr><td>DEPARTMENT_NOT_FOUND</td><td>404</td><td>부서를 찾을 수 없습니다.</td></tr>
-        <tr><td>DEPARTMENT_HAS_TEAMS</td><td>400</td><td>하위 팀이 있어 삭제할 수 없습니다.</td></tr>
-        <tr><td>TEAM_NOT_FOUND</td><td>404</td><td>팀을 찾을 수 없습니다.</td></tr>
-        <tr><td>TEAM_HAS_EMPLOYEES</td><td>400</td><td>소속 직원이 있어 삭제할 수 없습니다.</td></tr>
-        </tbody></table></div>
-        <div class="detail-section"><div class="detail-label">임대/AS/직원/사용자/공통코드</div>
-        <table class="grid" style="font-size:11px"><thead><tr><th>에러코드</th><th>HTTP</th><th>메시지</th></tr></thead><tbody>
-        <tr><td>RENTAL_NOT_FOUND</td><td>404</td><td>임대 기록을 찾을 수 없습니다.</td></tr>
-        <tr><td>AS_RECORD_NOT_FOUND</td><td>404</td><td>AS 기록을 찾을 수 없습니다.</td></tr>
-        <tr><td>VENDOR_NOT_FOUND</td><td>404</td><td>업체를 찾을 수 없습니다.</td></tr>
-        <tr><td>AS_TYPE_NOT_FOUND</td><td>404</td><td>AS 유형을 찾을 수 없습니다.</td></tr>
-        <tr><td>EMPLOYEE_NOT_FOUND</td><td>404</td><td>직원을 찾을 수 없습니다.</td></tr>
-        <tr><td>USER_NOT_FOUND</td><td>404</td><td>사용자를 찾을 수 없습니다.</td></tr>
-        <tr><td>CODE_GROUP_NOT_FOUND</td><td>404</td><td>코드그룹을 찾을 수 없습니다.</td></tr>
-        <tr><td>CODE_NOT_FOUND</td><td>404</td><td>코드를 찾을 수 없습니다.</td></tr>
-        </tbody></table></div>
-        <div class="detail-section"><div class="detail-label">디바이스 상태 전이 규칙</div>
-        <table class="grid" style="font-size:11px"><thead><tr><th>현재 상태</th><th>전이 가능 상태</th></tr></thead><tbody>
-        <tr><td>INCOMING</td><td>RENTAL_READY</td></tr>
-        <tr><td>RENTAL_READY</td><td>RENTING, AS_RECEIVED, INCOMING</td></tr>
-        <tr><td>RENTING</td><td>RENTAL_READY, AS_RECEIVED</td></tr>
-        <tr><td>AS_RECEIVED</td><td>AS_PROGRESS, RENTAL_READY, DISPOSED</td></tr>
-        <tr><td>AS_PROGRESS</td><td>RENTAL_READY, DISPOSED</td></tr>
-        <tr><td>RETURNED</td><td>INCOMING</td></tr>
-        <tr><td>DISPOSED</td><td>(종단 상태)</td></tr>
-        </tbody></table></div>
-    </div>
-</div>
-
 <script th:src="@{/js/common.js}"></script>
 <script>
+function switchTab(tab,btn){
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tabLog').style.display=tab==='log'?'':'none';
+    document.getElementById('tabSpec').style.display=tab==='spec'?'':'none';
+}
+
 const PAGE_COLORS={'디바이스 현황':'#3498db','디바이스 임대 현황':'#2ecc71','생체정보/응급':'#e67e22',
     'AS 관리':'#e74c3c','지점 관리':'#9b59b6','센터정보':'#1abc9c','부서/팀':'#34495e',
     '센터 담당직원':'#f39c12','모델 관리':'#16a085','공통코드':'#8e44ad','사용자 관리':'#2c3e50',
@@ -114,34 +127,26 @@ async function load(p=1){
 }
 
 async function showDetail(id){
-    const r=await api(`/api/system-logs/${id}`);
-    if(!r.success)return;
-    const d=r.data;
-    const pc=PAGE_COLORS[d.pageName]||'#95a5a6';
+    const r=await api(`/api/system-logs/${id}`);if(!r.success)return;
+    const d=r.data,pc=PAGE_COLORS[d.pageName]||'#95a5a6';
     document.getElementById('detailBody').innerHTML=`
         <div class="detail-page-indicator" style="background:${pc}">
             <div class="detail-page-name">${d.pageName||'알 수 없음'}</div>
             <div class="detail-page-sub">${d.requestMethod} ${d.requestUrl}</div>
         </div>
-        <div class="detail-section">
-            <div class="detail-grid">
-                <div class="detail-item"><div class="detail-label">에러코드</div><div class="detail-value"><span class="badge badge-폐기">${d.errorCode}</span></div></div>
-                <div class="detail-item"><div class="detail-label">발생시간</div><div class="detail-value">${d.createdAt?new Date(d.createdAt).toLocaleString('ko-KR'):'-'}</div></div>
-                <div class="detail-item"><div class="detail-label">클라이언트 IP</div><div class="detail-value">${d.clientIp||'-'}</div></div>
-                <div class="detail-item"><div class="detail-label">요청 메소드</div><div class="detail-value">${d.requestMethod||'-'}</div></div>
-            </div>
-        </div>
-        <div class="detail-section">
-            <div class="detail-label">에러 메시지</div>
-            <div class="detail-msg-box">${d.errorMessage||'-'}</div>
-        </div>
-        ${d.requestBody?`<div class="detail-section"><div class="detail-label">요청 Body</div><pre class="detail-code">${escapeHtml(d.requestBody)}</pre></div>`:''}
-        ${d.stackTrace?`<div class="detail-section"><div class="detail-label">Stack Trace</div><pre class="detail-code detail-stack">${escapeHtml(d.stackTrace)}</pre></div>`:''}
-    `;
+        <div class="detail-section"><div class="detail-grid">
+            <div class="detail-item"><div class="detail-label">에러코드</div><div class="detail-value"><span class="badge badge-폐기">${d.errorCode}</span></div></div>
+            <div class="detail-item"><div class="detail-label">발생시간</div><div class="detail-value">${d.createdAt?new Date(d.createdAt).toLocaleString('ko-KR'):'-'}</div></div>
+            <div class="detail-item"><div class="detail-label">클라이언트 IP</div><div class="detail-value">${d.clientIp||'-'}</div></div>
+            <div class="detail-item"><div class="detail-label">요청 메소드</div><div class="detail-value">${d.requestMethod||'-'}</div></div>
+        </div></div>
+        <div class="detail-section"><div class="detail-label">에러 메시지</div><div class="detail-msg-box">${d.errorMessage||'-'}</div></div>
+        ${d.requestBody?`<div class="detail-section"><div class="detail-label">요청 Body</div><pre class="detail-code">${esc(d.requestBody)}</pre></div>`:''}
+        ${d.stackTrace?`<div class="detail-section"><div class="detail-label">Stack Trace</div><pre class="detail-code detail-stack">${esc(d.stackTrace)}</pre></div>`:''}`;
     openDraw('detailDraw');
 }
 
-function escapeHtml(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
+function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
 load();
 </script>
 </body></html>
