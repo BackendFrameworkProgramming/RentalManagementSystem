@@ -10,27 +10,74 @@
         </div>
         <div class="table-wrap">
             <table class="grid">
-                <thead><tr><th>No</th><th>에러코드</th><th>메시지</th><th>URL</th><th>Method</th><th>IP</th><th>발생시간</th></tr></thead>
+                <thead><tr><th>No</th><th>발생 화면</th><th>에러코드</th><th>메시지</th><th>URL</th><th>Method</th><th>IP</th><th>발생시간</th></tr></thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
         <div class="pagination-bar" id="paging"></div>
     </div>
 </div>
+
+<!-- 상세조회 Draw -->
+<div class="draw-overlay" id="detailDrawOverlay" onclick="closeDraw('detailDraw')"></div>
+<div class="draw" id="detailDraw" style="width:620px">
+    <div class="draw-header"><span>에러 상세 정보</span><button class="draw-close" onclick="closeDraw('detailDraw')">&times;</button></div>
+    <div class="draw-body" id="detailBody"></div>
+</div>
+
 <script th:src="@{/js/common.js}"></script>
 <script>
+const PAGE_COLORS={'디바이스 현황':'#3498db','디바이스 임대 현황':'#2ecc71','생체정보/응급':'#e67e22',
+    'AS 관리':'#e74c3c','지점 관리':'#9b59b6','센터정보':'#1abc9c','부서/팀':'#34495e',
+    '센터 담당직원':'#f39c12','모델 관리':'#16a085','공통코드':'#8e44ad','사용자 관리':'#2c3e50',
+    '에러로그':'#7f8c8d','인증':'#c0392b'};
+
 async function load(p=1){
     const r=await api(`/api/system-logs?page=${p}&size=20&orderField=createdAt&orderType=DESC`);
     let i=(p-1)*20;
-    document.getElementById('tbody').innerHTML=(r.data||[]).map(l=>`<tr>
+    document.getElementById('tbody').innerHTML=(r.data||[]).map(l=>{
+        const pc=PAGE_COLORS[l.pageName]||'#95a5a6';
+        return `<tr style="cursor:pointer" onclick="showDetail(${l.id})">
         <td class="center">${++i}</td>
+        <td><span class="page-badge" style="background:${pc}">${l.pageName||'알 수 없음'}</span></td>
         <td><span class="badge badge-폐기">${l.errorCode||'-'}</span></td>
-        <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis">${l.errorMessage||'-'}</td>
-        <td>${l.requestUrl||'-'}</td><td class="center">${l.requestMethod||'-'}</td><td>${l.clientIp||'-'}</td>
+        <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.errorMessage||'-'}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${l.requestUrl||'-'}</td>
+        <td class="center">${l.requestMethod||'-'}</td><td>${l.clientIp||'-'}</td>
         <td>${l.createdAt?new Date(l.createdAt).toLocaleString('ko-KR'):'-'}</td>
-    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:30px;color:#aaa">에러 로그 없음</td></tr>';
+    </tr>`}).join('')||'<tr><td colspan="8" style="text-align:center;padding:30px;color:#aaa">에러 로그 없음</td></tr>';
     paginate(document.getElementById('paging'),r.pagination,'load');
 }
+
+async function showDetail(id){
+    const r=await api(`/api/system-logs/${id}`);
+    if(!r.success)return;
+    const d=r.data;
+    const pc=PAGE_COLORS[d.pageName]||'#95a5a6';
+    document.getElementById('detailBody').innerHTML=`
+        <div class="detail-page-indicator" style="background:${pc}">
+            <div class="detail-page-name">${d.pageName||'알 수 없음'}</div>
+            <div class="detail-page-sub">${d.requestMethod} ${d.requestUrl}</div>
+        </div>
+        <div class="detail-section">
+            <div class="detail-grid">
+                <div class="detail-item"><div class="detail-label">에러코드</div><div class="detail-value"><span class="badge badge-폐기">${d.errorCode}</span></div></div>
+                <div class="detail-item"><div class="detail-label">발생시간</div><div class="detail-value">${d.createdAt?new Date(d.createdAt).toLocaleString('ko-KR'):'-'}</div></div>
+                <div class="detail-item"><div class="detail-label">클라이언트 IP</div><div class="detail-value">${d.clientIp||'-'}</div></div>
+                <div class="detail-item"><div class="detail-label">요청 메소드</div><div class="detail-value">${d.requestMethod||'-'}</div></div>
+            </div>
+        </div>
+        <div class="detail-section">
+            <div class="detail-label">에러 메시지</div>
+            <div class="detail-msg-box">${d.errorMessage||'-'}</div>
+        </div>
+        ${d.requestBody?`<div class="detail-section"><div class="detail-label">요청 Body</div><pre class="detail-code">${escapeHtml(d.requestBody)}</pre></div>`:''}
+        ${d.stackTrace?`<div class="detail-section"><div class="detail-label">Stack Trace</div><pre class="detail-code detail-stack">${escapeHtml(d.stackTrace)}</pre></div>`:''}
+    `;
+    openDraw('detailDraw');
+}
+
+function escapeHtml(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
 load();
 </script>
 </body></html>

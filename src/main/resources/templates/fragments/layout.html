@@ -6,7 +6,10 @@
 </head>
 <body>
 <div th:fragment="header">
-    <div class="top-header" th:text="${pageTitle ?: '로봇 임대관리시스템'}">로봇 임대관리시스템</div>
+    <div class="top-header">
+        <span th:text="${pageTitle ?: '로봇 임대관리시스템'}">로봇 임대관리시스템</span>
+        <div class="user-info" id="userInfo"></div>
+    </div>
     <nav class="nav">
         <a th:href="@{/devices}" th:classappend="${menu=='devices'}?'active'">디바이스 현황</a>
         <a th:href="@{/rentals}" th:classappend="${menu=='rentals'}?'active'">디바이스 임대 현황</a>
@@ -16,8 +19,24 @@
         <a th:href="@{/center}" th:classappend="${menu=='center'}?'active'">센터정보</a>
         <a th:href="@{/departments}" th:classappend="${menu=='departments'}?'active'">부서/팀</a>
         <a th:href="@{/employees}" th:classappend="${menu=='employees'}?'active'">센터 담당직원</a>
-        <a th:href="@{/system-logs}" th:classappend="${menu=='logs'}?'active'" style="margin-left:auto;">에러로그</a>
+        <span id="navAdmin" class="nav-admin" style="display:none">
+            <a th:href="@{/models}" th:classappend="${menu=='models'}?'active'">모델 관리</a>
+            <a th:href="@{/common-codes}" th:classappend="${menu=='codes'}?'active'">공통코드</a>
+            <a th:href="@{/users}" th:classappend="${menu=='users'}?'active'">사용자 관리</a>
+            <a th:href="@{/system-logs}" th:classappend="${menu=='logs'}?'active'">에러로그</a>
+            <a th:href="@{/design-history}" th:classappend="${menu=='design'}?'active'">설계이력</a>
+        </span>
     </nav>
+    <script>
+    (async()=>{try{const r=await fetch('/api/auth/me');const d=await r.json();
+    if(d.success){
+        document.getElementById('userInfo').innerHTML=
+        `<span class="user-name">${d.data.userName} (${d.data.role==='ADMIN'?'관리자':'일반'})</span><button class="btn-logout" onclick="doLogout()">로그아웃</button>`;
+        if(d.data.role==='ADMIN') document.getElementById('navAdmin').style.display='flex';
+        window.__userRole=d.data.role;
+    }}catch(e){}})();
+    async function doLogout(){await fetch('/api/auth/logout',{method:'POST'});window.location.href='/login';}
+    </script>
 </div>
 </body>
 </html>

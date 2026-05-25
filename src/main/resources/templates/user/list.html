@@ -2,36 +2,82 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('사용자 관리')}"></head>
 <body>
-<nav th:replace="~{fragments/layout :: nav}"></nav>
-<div class="container">
-<div class="card">
-    <div class="card-header"><h2>사용자 관리</h2><button class="btn btn-primary" onclick="openModal('userModal')">+ 사용자 등록</button></div>
-    <table class="data-table">
-        <thead><tr><th>ID</th><th>사용자명</th><th>로그인ID</th><th>연락처</th><th>이메일</th><th>관리</th></tr></thead>
-        <tbody id="userTable"></tbody>
-    </table>
-    <div class="pagination" id="pagination"></div>
-</div></div>
-<div class="modal-overlay" id="userModal"><div class="modal">
-    <div class="modal-header"><h3>사용자 등록</h3><button class="modal-close" onclick="closeModal('userModal')">×</button></div>
-    <div class="form-group"><label>사용자명</label><input id="uName"></div>
-    <div class="form-group"><label>로그인ID</label><input id="uLoginId"></div>
-    <div class="form-group"><label>연락처</label><input id="uContact"></div>
-    <div class="form-group"><label>이메일</label><input id="uEmail"></div>
-    <button class="btn btn-primary" onclick="createUser()">등록</button>
-</div></div>
+<div th:replace="~{fragments/layout :: header}"></div>
+<div class="page-wrapper">
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="toolbar-left"><div class="breadcrumb">사용자 관리</div></div>
+            <div class="toolbar-right">
+                <button class="btn btn-new" onclick="openDraw('userDraw');clearForm()">+ 사용자 등록</button>
+            </div>
+        </div>
+        <div class="search-bar">
+            <select id="sf"><option value="userName">사용자명</option><option value="userLoginId">로그인ID</option></select>
+            <input type="text" id="sk" placeholder="검색어 입력" onkeydown="if(event.key==='Enter')loadUsers(1)">
+            <button class="search-btn" onclick="loadUsers(1)">검색</button>
+            <span class="total-info">총 <b id="totalEl">0</b>건</span>
+        </div>
+        <div class="table-wrap">
+            <table class="grid">
+                <thead><tr><th>No</th><th>사용자명</th><th>로그인ID</th><th>역할</th><th>연락처</th><th>이메일</th><th>관리</th></tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <div class="pagination-bar" id="paging"></div>
+    </div>
+</div>
+<!-- 사용자 등록 Draw -->
+<div class="draw-overlay" id="userDrawOverlay" onclick="closeDraw('userDraw')"></div>
+<div class="draw" id="userDraw">
+    <div class="draw-header"><span>사용자 등록</span><button class="draw-close" onclick="closeDraw('userDraw')">&times;</button></div>
+    <div class="draw-body">
+        <div class="form-section">
+            <div class="form-group"><label>사용자명 *</label><input id="uName"></div>
+            <div class="form-group"><label>로그인ID *</label><input id="uLoginId"></div>
+            <div class="form-group"><label>비밀번호 *</label><input type="password" id="uPassword" placeholder="비밀번호 입력"></div>
+            <div class="form-row">
+                <div class="form-group"><label>역할 *</label>
+                    <select id="uRole" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px">
+                        <option value="USER">일반 사용자</option>
+                        <option value="ADMIN">관리자</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>연락처</label><input id="uContact" placeholder="010-0000-0000"></div>
+                <div class="form-group"><label>이메일</label><input id="uEmail" type="email" placeholder="email@example.com"></div>
+            </div>
+        </div>
+        <button class="btn btn-save" onclick="createUser()">등록</button>
+    </div>
+</div>
 <script th:src="@{/js/common.js}"></script>
 <script>
-async function loadUsers(page=1) {
-    const res = await api(`/api/users?page=${page}&size=20`);
-    document.getElementById('userTable').innerHTML = (res.data||[]).map(u => `<tr>
-        <td>${u.id}</td><td>${u.userName}</td><td>${u.userLoginId||'-'}</td><td>${u.contact||'-'}</td><td>${u.email||'-'}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">삭제</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;">데이터 없음</td></tr>';
-    renderPagination(document.getElementById('pagination'), res.pagination, 'loadUsers');
+async function loadUsers(p=1){
+    const sf=document.getElementById('sf').value,sk=document.getElementById('sk').value;
+    let url=`/api/users?page=${p}&size=20`;
+    if(sk)url+=`&searchField=${sf}&searchKeyword=${sk}`;
+    const r=await api(url);let i=(p-1)*20;
+    document.getElementById('totalEl').textContent=r.pagination?.totalElements||0;
+    document.getElementById('tbody').innerHTML=(r.data||[]).map(u=>`<tr>
+        <td class="center">${++i}</td>
+        <td>${u.userName}</td><td>${u.userLoginId||'-'}</td>
+        <td class="center"><span class="badge ${u.role==='ADMIN'?'badge-AS접수':'badge-임대대기'}">${u.role==='ADMIN'?'관리자':'일반'}</span></td>
+        <td>${u.contact||'-'}</td><td>${u.email||'-'}</td>
+        <td class="center"><button class="btn btn-sm btn-delete" onclick="deleteUser(${u.id})">삭제</button></td>
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:30px;color:#aaa">사용자 없음</td></tr>';
+    paginate(document.getElementById('paging'),r.pagination,'loadUsers');
 }
-async function createUser() { const res = await api('/api/users','POST',{userName:document.getElementById('uName').value,userLoginId:document.getElementById('uLoginId').value,contact:document.getElementById('uContact').value,email:document.getElementById('uEmail').value}); if(res.success){toast('등록 완료');closeModal('userModal');loadUsers();}else{toast(res.error?.message,'error');} }
-async function deleteUser(id) { if(!confirm('삭제?'))return; const res = await api(`/api/users/${id}`,'DELETE'); if(res.success){toast('삭제');loadUsers();}else{toast(res.error?.message,'error');} }
+function clearForm(){['uName','uLoginId','uPassword','uContact','uEmail'].forEach(id=>document.getElementById(id).value='');document.getElementById('uRole').value='USER';}
+async function createUser(){
+    const body={userName:document.getElementById('uName').value,userLoginId:document.getElementById('uLoginId').value,
+        password:document.getElementById('uPassword').value,role:document.getElementById('uRole').value,
+        contact:document.getElementById('uContact').value,email:document.getElementById('uEmail').value};
+    if(!body.userName||!body.userLoginId||!body.password){toast('사용자명, 로그인ID, 비밀번호는 필수입니다.','error');return;}
+    const r=await api('/api/users','POST',body);
+    if(r.success){toast('사용자 등록 완료');closeDraw('userDraw');loadUsers();}else toast(r.error?.message,'error');
+}
+async function deleteUser(id){if(!confirm('이 사용자를 삭제하시겠습니까?'))return;const r=await api(`/api/users/${id}`,'DELETE');if(r.success){toast('삭제 완료');loadUsers();}else toast(r.error?.message,'error');}
 loadUsers();
 </script>
 </body></html>

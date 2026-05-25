@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"><title>로그인 - 로봇 임대관리시스템</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-body">
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>로봇 임대관리시스템</h1>
+            <p>웨어러블 로봇 디바이스 임대관리</p>
+        </div>
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+            <div class="auth-field">
+                <label for="userLoginId">아이디</label>
+                <input type="text" id="userLoginId" placeholder="아이디를 입력하세요" required autofocus>
+            </div>
+            <div class="auth-field">
+                <label for="password">비밀번호</label>
+                <input type="password" id="password" placeholder="비밀번호를 입력하세요" required>
+            </div>
+            <div id="errorMsg" class="auth-error" style="display:none"></div>
+            <button type="submit" class="auth-btn" id="loginBtn">로그인</button>
+        </form>
+        <div class="auth-footer">
+            <span>계정 문의는 관리자에게 요청하세요.</span>
+        </div>
+    </div>
+</div>
+<script>
+async function handleLogin(e){
+    e.preventDefault();
+    const btn=document.getElementById('loginBtn');
+    const errEl=document.getElementById('errorMsg');
+    btn.disabled=true; btn.textContent='로그인 중...'; errEl.style.display='none';
+    try{
+        const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({userLoginId:document.getElementById('userLoginId').value,password:document.getElementById('password').value})});
+        const data=await r.json();
+        if(data.success){window.location.href='/devices';}
+        else{errEl.textContent=data.error?.message||'로그인에 실패했습니다.';errEl.style.display='block';}
+    }catch(err){errEl.textContent='서버 연결에 실패했습니다.';errEl.style.display='block';}
+    btn.disabled=false;btn.textContent='로그인';
+    return false;
+}
+</script>
+</body></html>

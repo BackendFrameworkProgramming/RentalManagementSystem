@@ -2,66 +2,113 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('모델 관리')}"></head>
 <body>
-<nav th:replace="~{fragments/layout :: nav}"></nav>
-<div class="container">
-<div class="card">
-    <div class="card-header"><h2>모델 관리</h2><button class="btn btn-primary" onclick="openModal('modelModal')">+ 모델 등록</button></div>
-    <table class="data-table">
-        <thead><tr><th>ID</th><th>모델명</th><th>제조사</th><th>버전 수</th><th>관리</th></tr></thead>
-        <tbody id="modelTable"></tbody>
-    </table>
+<div th:replace="~{fragments/layout :: header}"></div>
+<div class="page-wrapper">
+    <div class="left-panel">
+        <div class="left-panel-header">모델 목록</div>
+        <div class="left-panel-search"><input type="text" id="modelSearch" placeholder="모델 검색" oninput="filterModels()"></div>
+        <div class="left-panel-list" id="modelList"></div>
+    </div>
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="toolbar-left"><div class="breadcrumb"><span id="breadcrumb">모델 관리</span></div></div>
+            <div class="toolbar-right">
+                <button class="btn btn-new" onclick="openDraw('modelDraw');clearModelForm()">+ 모델 등록</button>
+            </div>
+        </div>
+        <div id="versionArea" style="display:none">
+            <div class="toolbar" style="border-top:1px solid #eee">
+                <div class="toolbar-left"><div class="breadcrumb"><span id="versionTitle">버전 목록</span></div></div>
+                <div class="toolbar-right"><button class="btn btn-new" onclick="openDraw('versionDraw');clearVersionForm()">+ 버전 등록</button></div>
+            </div>
+            <div class="table-wrap">
+                <table class="grid">
+                    <thead><tr><th>버전</th><th>스펙</th><th>출시일</th><th>매뉴얼</th><th>관리</th></tr></thead>
+                    <tbody id="versionTable"></tbody>
+                </table>
+            </div>
+        </div>
+        <div id="emptyMsg" class="placeholder">좌측에서 모델을 선택하세요</div>
+    </div>
 </div>
-<div class="card" id="versionCard" style="display:none;">
-    <div class="card-header"><h2 id="versionTitle">버전 목록</h2><button class="btn btn-primary" onclick="openModal('versionModal')">+ 버전 등록</button></div>
-    <table class="data-table">
-        <thead><tr><th>버전</th><th>스펙</th><th>출시일</th><th>매뉴얼</th><th>관리</th></tr></thead>
-        <tbody id="versionTable"></tbody>
-    </table>
+<!-- 모델 등록 Draw -->
+<div class="draw-overlay" id="modelDrawOverlay" onclick="closeDraw('modelDraw')"></div>
+<div class="draw" id="modelDraw">
+    <div class="draw-header"><span>모델 등록/수정</span><button class="draw-close" onclick="closeDraw('modelDraw')">&times;</button></div>
+    <div class="draw-body">
+        <input type="hidden" id="editModelId">
+        <div class="form-section">
+            <div class="form-group"><label>모델명 *</label><input id="mName"></div>
+            <div class="form-group"><label>제조사</label><input id="mManu"></div>
+            <div class="form-group"><label>설명</label><textarea id="mDesc" rows="3" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px"></textarea></div>
+        </div>
+        <div style="display:flex;gap:6px">
+            <button class="btn btn-save" onclick="saveModel()">저장</button>
+            <button class="btn btn-delete" id="btnDelModel" style="display:none" onclick="deleteModel()">삭제</button>
+        </div>
+    </div>
 </div>
+<!-- 버전 등록 Draw -->
+<div class="draw-overlay" id="versionDrawOverlay" onclick="closeDraw('versionDraw')"></div>
+<div class="draw" id="versionDraw">
+    <div class="draw-header"><span>버전 등록</span><button class="draw-close" onclick="closeDraw('versionDraw')">&times;</button></div>
+    <div class="draw-body">
+        <div class="form-section">
+            <div class="form-group"><label>버전 *</label><input id="vVer"></div>
+            <div class="form-group"><label>스펙</label><textarea id="vSpec" rows="3" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px"></textarea></div>
+            <div class="form-group"><label>출시일</label><input type="date" id="vDate" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px"></div>
+        </div>
+        <button class="btn btn-save" onclick="createVersion()">등록</button>
+    </div>
 </div>
-<div class="modal-overlay" id="modelModal"><div class="modal">
-    <div class="modal-header"><h3>모델 등록</h3><button class="modal-close" onclick="closeModal('modelModal')">×</button></div>
-    <div class="form-group"><label>모델명</label><input id="mName"></div>
-    <div class="form-group"><label>제조사</label><input id="mManu"></div>
-    <div class="form-group"><label>설명</label><textarea id="mDesc" rows="3"></textarea></div>
-    <button class="btn btn-primary" onclick="createModel()">등록</button>
-</div></div>
-<div class="modal-overlay" id="versionModal"><div class="modal">
-    <div class="modal-header"><h3>버전 등록</h3><button class="modal-close" onclick="closeModal('versionModal')">×</button></div>
-    <div class="form-group"><label>버전</label><input id="vVer"></div>
-    <div class="form-group"><label>스펙</label><textarea id="vSpec" rows="3"></textarea></div>
-    <div class="form-group"><label>출시일</label><input type="date" id="vDate"></div>
-    <button class="btn btn-primary" onclick="createVersion()">등록</button>
-</div></div>
 <script th:src="@{/js/common.js}"></script>
 <script>
-let selectedModelId = null;
-async function loadModels() {
-    const res = await api('/api/models');
-    document.getElementById('modelTable').innerHTML = (res.data||[]).map(m => `<tr>
-        <td>${m.id}</td><td><a href="#" onclick="selectModel(${m.id},'${m.modelName}')">${m.modelName}</a></td>
-        <td>${m.manufacturer||'-'}</td><td>${(m.versions||[]).length}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteModel(${m.id})">삭제</button></td>
-    </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:30px;">데이터 없음</td></tr>';
+let allModels=[],selectedModelId=null;
+async function loadModels(){
+    const r=await api('/api/models');allModels=r.data||[];renderModelList(allModels);
 }
-function selectModel(id, name) {
-    selectedModelId = id;
-    document.getElementById('versionTitle').textContent = name + ' - 버전 목록';
-    document.getElementById('versionCard').style.display = 'block';
+function renderModelList(list){
+    document.getElementById('modelList').innerHTML=list.map(m=>
+        `<div class="left-panel-item ${m.id===selectedModelId?'active':''}" onclick="selectModel(${m.id},'${(m.modelName||'').replace(/'/g,"\\'")}')">
+            <span>${m.modelName}</span><span class="count">${m.manufacturer||''}</span>
+        </div>`).join('')||'<div style="padding:20px;text-align:center;color:#aaa">모델 없음</div>';
+}
+function filterModels(){const q=document.getElementById('modelSearch').value.toLowerCase();renderModelList(allModels.filter(m=>(m.modelName||'').toLowerCase().includes(q)));}
+function selectModel(id,name){
+    selectedModelId=id;renderModelList(allModels);
+    document.getElementById('breadcrumb').textContent=name+' > 버전 목록';
+    document.getElementById('versionArea').style.display='block';
+    document.getElementById('emptyMsg').style.display='none';
+    document.getElementById('versionTitle').textContent=name+' - 버전 목록';
     loadVersions(id);
 }
-async function loadVersions(id) {
-    const res = await api(`/api/models/${id}`);
-    document.getElementById('versionTable').innerHTML = (res.data?.versions||[]).map(v => `<tr>
-        <td>${v.version}</td><td>${v.spec||'-'}</td><td>${v.releaseDate||'-'}</td>
-        <td>${v.manualFileName ? `<a href="/api/model-versions/${v.id}/manual">${v.manualFileName}</a>` : '-'}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteVersion(${v.id})">삭제</button></td>
-    </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;">버전 없음</td></tr>';
+async function loadVersions(id){
+    const r=await api(`/api/models/${id}`);
+    document.getElementById('versionTable').innerHTML=(r.data?.versions||[]).map(v=>`<tr>
+        <td>${v.version}</td><td style="max-width:300px;white-space:normal">${v.spec||'-'}</td><td>${v.releaseDate||'-'}</td>
+        <td>${v.manualFileName?`<a href="/api/model-versions/${v.id}/manual">${v.manualFileName}</a>`:'-'}</td>
+        <td class="center"><button class="btn btn-sm btn-delete" onclick="deleteVersion(${v.id})">삭제</button></td>
+    </tr>`).join('')||'<tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa">버전 없음</td></tr>';
 }
-async function createModel() { const res = await api('/api/models','POST',{modelName:document.getElementById('mName').value,manufacturer:document.getElementById('mManu').value,description:document.getElementById('mDesc').value}); if(res.success){toast('등록 완료');closeModal('modelModal');loadModels();}else{toast(res.error?.message,'error');} }
-async function deleteModel(id) { if(!confirm('삭제?'))return; const res = await api(`/api/models/${id}`,'DELETE'); if(res.success){toast('삭제');loadModels();document.getElementById('versionCard').style.display='none';}else{toast(res.error?.message,'error');} }
-async function createVersion() { const res = await api(`/api/models/${selectedModelId}/versions`,'POST',{version:document.getElementById('vVer').value,spec:document.getElementById('vSpec').value,releaseDate:document.getElementById('vDate').value||null}); if(res.success){toast('등록 완료');closeModal('versionModal');loadVersions(selectedModelId);}else{toast(res.error?.message,'error');} }
-async function deleteVersion(id) { if(!confirm('삭제?'))return; const res = await api(`/api/model-versions/${id}`,'DELETE'); if(res.success){toast('삭제');loadVersions(selectedModelId);}else{toast(res.error?.message,'error');} }
+function clearModelForm(){document.getElementById('editModelId').value='';document.getElementById('mName').value='';document.getElementById('mManu').value='';document.getElementById('mDesc').value='';document.getElementById('btnDelModel').style.display='none';}
+function clearVersionForm(){document.getElementById('vVer').value='';document.getElementById('vSpec').value='';document.getElementById('vDate').value='';}
+async function saveModel(){
+    const id=document.getElementById('editModelId').value;
+    const body={modelName:document.getElementById('mName').value,manufacturer:document.getElementById('mManu').value,description:document.getElementById('mDesc').value};
+    const r=id?await api(`/api/models/${id}`,'PATCH',body):await api('/api/models','POST',body);
+    if(r.success){toast(id?'수정 완료':'등록 완료');closeDraw('modelDraw');loadModels();}else toast(r.error?.message,'error');
+}
+async function deleteModel(){
+    if(!confirm('이 모델을 삭제하시겠습니까?'))return;
+    const id=document.getElementById('editModelId').value;
+    const r=await api(`/api/models/${id}`,'DELETE');
+    if(r.success){toast('삭제 완료');closeDraw('modelDraw');selectedModelId=null;document.getElementById('versionArea').style.display='none';document.getElementById('emptyMsg').style.display='flex';loadModels();}else toast(r.error?.message,'error');
+}
+async function createVersion(){
+    const r=await api(`/api/models/${selectedModelId}/versions`,'POST',{version:document.getElementById('vVer').value,spec:document.getElementById('vSpec').value,releaseDate:document.getElementById('vDate').value||null});
+    if(r.success){toast('버전 등록 완료');closeDraw('versionDraw');loadVersions(selectedModelId);}else toast(r.error?.message,'error');
+}
+async function deleteVersion(id){if(!confirm('삭제?'))return;const r=await api(`/api/model-versions/${id}`,'DELETE');if(r.success){toast('삭제');loadVersions(selectedModelId);}else toast(r.error?.message,'error');}
 loadModels();
 </script>
 </body></html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"><title>회원가입 - 로봇 임대관리시스템</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-body">
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>회원가입</h1>
+            <p>로봇 임대관리시스템 계정 생성</p>
+        </div>
+        <form id="signupForm" onsubmit="return handleSignup(event)">
+            <div class="auth-field">
+                <label for="userLoginId">아이디 <span class="required">*</span></label>
+                <input type="text" id="userLoginId" placeholder="아이디를 입력하세요" required autofocus>
+            </div>
+            <div class="auth-field">
+                <label for="userName">이름 <span class="required">*</span></label>
+                <input type="text" id="userName" placeholder="이름을 입력하세요" required>
+            </div>
+            <div class="auth-field">
+                <label for="password">비밀번호 <span class="required">*</span></label>
+                <input type="password" id="password" placeholder="비밀번호를 입력하세요" required minlength="4">
+            </div>
+            <div class="auth-field">
+                <label for="passwordConfirm">비밀번호 확인 <span class="required">*</span></label>
+                <input type="password" id="passwordConfirm" placeholder="비밀번호를 다시 입력하세요" required>
+            </div>
+            <div class="auth-row">
+                <div class="auth-field">
+                    <label for="email">이메일</label>
+                    <input type="email" id="email" placeholder="이메일">
+                </div>
+                <div class="auth-field">
+                    <label for="contact">연락처</label>
+                    <input type="text" id="contact" placeholder="010-0000-0000">
+                </div>
+            </div>
+            <div id="errorMsg" class="auth-error" style="display:none"></div>
+            <button type="submit" class="auth-btn" id="signupBtn">회원가입</button>
+        </form>
+        <div class="auth-footer">
+            <span>이미 계정이 있으신가요?</span> <a href="/login">로그인</a>
+        </div>
+    </div>
+</div>
+<script>
+async function handleSignup(e){
+    e.preventDefault();
+    const btn=document.getElementById('signupBtn');
+    const errEl=document.getElementById('errorMsg');
+    const pw=document.getElementById('password').value;
+    const pwc=document.getElementById('passwordConfirm').value;
+    if(pw!==pwc){errEl.textContent='비밀번호가 일치하지 않습니다.';errEl.style.display='block';return false;}
+    btn.disabled=true;btn.textContent='가입 중...';errEl.style.display='none';
+    try{
+        const r=await fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({userLoginId:document.getElementById('userLoginId').value,userName:document.getElementById('userName').value,
+                password:pw,email:document.getElementById('email').value,contact:document.getElementById('contact').value})});
+        const data=await r.json();
+        if(data.success){window.location.href='/devices';}
+        else{errEl.textContent=data.error?.message||'회원가입에 실패했습니다.';errEl.style.display='block';}
+    }catch(err){errEl.textContent='서버 연결에 실패했습니다.';errEl.style.display='block';}
+    btn.disabled=false;btn.textContent='회원가입';
+    return false;
+}
+</script>
+</body></html>

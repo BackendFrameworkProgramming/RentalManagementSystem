@@ -2,39 +2,102 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('공통코드 관리')}"></head>
 <body>
-<nav th:replace="~{fragments/layout :: nav}"></nav>
-<div class="container">
-<div class="card">
-    <div class="card-header"><h2>공통코드 관리</h2><button class="btn btn-primary" onclick="openModal('codeModal')">+ 코드 등록</button></div>
-    <div class="search-bar"><select id="groupSelect" onchange="loadCodes()"><option value="">전체 그룹</option></select></div>
-    <table class="data-table">
-        <thead><tr><th>ID</th><th>그룹</th><th>코드값</th><th>코드명</th><th>순서</th><th>사용</th><th>관리</th></tr></thead>
-        <tbody id="codeTable"></tbody>
-    </table>
-</div></div>
-<div class="modal-overlay" id="codeModal"><div class="modal">
-    <div class="modal-header"><h3>코드 등록</h3><button class="modal-close" onclick="closeModal('codeModal')">×</button></div>
-    <div class="form-group"><label>그룹코드</label><input id="newGroupCode" placeholder="DEVICE_STATUS"></div>
-    <div class="form-group"><label>코드값 (영문)</label><input id="newCodeValue" placeholder="RENTING"></div>
-    <div class="form-group"><label>코드명 (한글)</label><input id="newCodeName" placeholder="임대중"></div>
-    <div class="form-group"><label>순서</label><input type="number" id="newSortOrder" value="0"></div>
-    <button class="btn btn-primary" onclick="createCode()">등록</button>
-</div></div>
+<div th:replace="~{fragments/layout :: header}"></div>
+<div class="page-wrapper">
+    <div class="left-panel">
+        <div class="left-panel-header">코드 그룹</div>
+        <div class="left-panel-search"><input type="text" id="groupSearch" placeholder="그룹 검색" oninput="filterGroups()"></div>
+        <div class="left-panel-list" id="groupList"></div>
+    </div>
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="toolbar-left"><div class="breadcrumb"><span id="breadcrumb">공통코드 관리</span></div></div>
+            <div class="toolbar-right">
+                <button class="btn btn-new" onclick="openDraw('groupDraw');clearGroupForm()">+ 그룹 등록</button>
+            </div>
+        </div>
+        <div id="detailArea" style="display:none">
+            <div class="toolbar" style="border-top:1px solid #eee">
+                <div class="toolbar-left"><div class="breadcrumb"><span id="detailTitle">코드 상세</span></div></div>
+                <div class="toolbar-right"><button class="btn btn-new" onclick="openDraw('detailDraw');clearDetailForm()">+ 코드 등록</button></div>
+            </div>
+            <div class="table-wrap">
+                <table class="grid">
+                    <thead><tr><th>ID</th><th>코드값</th><th>코드명</th><th>순서</th><th>사용여부</th><th>관리</th></tr></thead>
+                    <tbody id="detailTable"></tbody>
+                </table>
+            </div>
+        </div>
+        <div id="emptyMsg" class="placeholder">좌측에서 코드 그룹을 선택하세요</div>
+    </div>
+</div>
+<!-- 그룹 등록 Draw -->
+<div class="draw-overlay" id="groupDrawOverlay" onclick="closeDraw('groupDraw')"></div>
+<div class="draw" id="groupDraw">
+    <div class="draw-header"><span>코드 그룹 등록</span><button class="draw-close" onclick="closeDraw('groupDraw')">&times;</button></div>
+    <div class="draw-body">
+        <div class="form-section">
+            <div class="form-group"><label>그룹코드 *</label><input id="gCode" placeholder="DEVICE_STATUS"></div>
+            <div class="form-group"><label>그룹명 *</label><input id="gName" placeholder="디바이스 상태"></div>
+            <div class="form-group"><label>설명</label><input id="gDesc"></div>
+        </div>
+        <button class="btn btn-save" onclick="createGroup()">등록</button>
+    </div>
+</div>
+<!-- 코드 상세 Draw -->
+<div class="draw-overlay" id="detailDrawOverlay" onclick="closeDraw('detailDraw')"></div>
+<div class="draw" id="detailDraw">
+    <div class="draw-header"><span>코드 상세 등록</span><button class="draw-close" onclick="closeDraw('detailDraw')">&times;</button></div>
+    <div class="draw-body">
+        <div class="form-section">
+            <div class="form-group"><label>코드값 (영문) *</label><input id="dValue" placeholder="RENTING"></div>
+            <div class="form-group"><label>코드명 (한글) *</label><input id="dName" placeholder="임대중"></div>
+            <div class="form-group"><label>순서</label><input type="number" id="dSort" value="0"></div>
+        </div>
+        <button class="btn btn-save" onclick="createDetail()">등록</button>
+    </div>
+</div>
 <script th:src="@{/js/common.js}"></script>
 <script>
-async function loadGroups() { const res = await api('/api/common-codes'); const sel = document.getElementById('groupSelect'); (res.data||[]).forEach(g => sel.innerHTML += `<option value="${g.groupCode}">${g.groupName||g.groupCode}</option>`); }
-async function loadCodes() {
-    const gc = document.getElementById('groupSelect').value;
-    const url = gc ? `/api/common-codes?groupCode=${gc}` : '/api/common-codes';
-    const res = await api(url);
-    document.getElementById('codeTable').innerHTML = (res.data||[]).map(c => `<tr>
-        <td>${c.id}</td><td>${c.groupCode||'-'}</td><td>${c.codeValue||'-'}</td><td>${c.codeName||c.groupName||'-'}</td>
-        <td>${c.sortOrder||'-'}</td><td>${c.useYn !== undefined ? (c.useYn ? 'Y' : 'N') : '-'}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteCode(${c.id})">삭제</button></td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;">데이터 없음</td></tr>';
+let allGroups=[],selectedGroupId=null;
+async function loadGroups(){
+    const r=await api('/api/common-codes');allGroups=r.data||[];renderGroupList(allGroups);
 }
-async function createCode() { const res = await api('/api/common-codes','POST',{groupCode:document.getElementById('newGroupCode').value,codeValue:document.getElementById('newCodeValue').value,codeName:document.getElementById('newCodeName').value,sortOrder:Number(document.getElementById('newSortOrder').value)}); if(res.success){toast('등록 완료');closeModal('codeModal');loadGroups();loadCodes();}else{toast(res.error?.message,'error');} }
-async function deleteCode(id) { if(!confirm('삭제?'))return; const res = await api(`/api/common-codes/${id}`,'DELETE'); if(res.success){toast('삭제');loadCodes();}else{toast(res.error?.message,'error');} }
-loadGroups(); loadCodes();
+function renderGroupList(list){
+    document.getElementById('groupList').innerHTML=list.map(g=>
+        `<div class="left-panel-item ${g.id===selectedGroupId?'active':''}" onclick="selectGroup(${g.id},'${(g.groupCode||'').replace(/'/g,"\\'")}','${(g.groupName||g.groupCode||'').replace(/'/g,"\\'")}')">
+            <span>${g.groupName||g.groupCode}</span><span class="count">${g.groupCode}</span>
+        </div>`).join('')||'<div style="padding:20px;text-align:center;color:#aaa">그룹 없음</div>';
+}
+function filterGroups(){const q=document.getElementById('groupSearch').value.toLowerCase();renderGroupList(allGroups.filter(g=>(g.groupName||g.groupCode||'').toLowerCase().includes(q)));}
+function selectGroup(id,code,name){
+    selectedGroupId=id;renderGroupList(allGroups);
+    document.getElementById('breadcrumb').textContent=name+' > 코드 상세';
+    document.getElementById('detailArea').style.display='block';
+    document.getElementById('emptyMsg').style.display='none';
+    document.getElementById('detailTitle').textContent=name+' ('+code+') - 코드 상세';
+    loadDetails(id);
+}
+async function loadDetails(id){
+    const r=await api(`/api/common-codes/${id}/details`);
+    document.getElementById('detailTable').innerHTML=(r.data||[]).map(d=>`<tr>
+        <td class="center">${d.id}</td><td>${d.codeValue||'-'}</td><td>${d.codeName||'-'}</td>
+        <td class="center">${d.sortOrder!=null?d.sortOrder:'-'}</td>
+        <td class="center">${d.useYn!==undefined?(d.useYn?'<span class="badge badge-임대대기">Y</span>':'<span class="badge badge-폐기">N</span>'):'-'}</td>
+        <td class="center"><button class="btn btn-sm btn-delete" onclick="deleteDetail(${d.id})">삭제</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa">코드 없음</td></tr>';
+}
+function clearGroupForm(){document.getElementById('gCode').value='';document.getElementById('gName').value='';document.getElementById('gDesc').value='';}
+function clearDetailForm(){document.getElementById('dValue').value='';document.getElementById('dName').value='';document.getElementById('dSort').value='0';}
+async function createGroup(){
+    const r=await api('/api/common-codes','POST',{groupCode:document.getElementById('gCode').value,groupName:document.getElementById('gName').value,description:document.getElementById('gDesc').value});
+    if(r.success){toast('그룹 등록 완료');closeDraw('groupDraw');loadGroups();}else toast(r.error?.message,'error');
+}
+async function createDetail(){
+    const r=await api(`/api/common-codes/${selectedGroupId}/details`,'POST',{codeValue:document.getElementById('dValue').value,codeName:document.getElementById('dName').value,sortOrder:Number(document.getElementById('dSort').value)});
+    if(r.success){toast('코드 등록 완료');closeDraw('detailDraw');loadDetails(selectedGroupId);}else toast(r.error?.message,'error');
+}
+async function deleteDetail(id){if(!confirm('삭제?'))return;const r=await api(`/api/common-codes/details/${id}`,'DELETE');if(r.success){toast('삭제');loadDetails(selectedGroupId);}else toast(r.error?.message,'error');}
+loadGroups();
 </script>
 </body></html>

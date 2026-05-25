@@ -45,4 +45,24 @@ public class PageController {
     // 에러로그 (PM)
     @GetMapping("/system-logs")
     public String systemLogs(Model model) { model.addAttribute("menu","logs"); model.addAttribute("pageTitle","에러로그"); return "system-log/list"; }
+
+    // 모델 관리 (PM)
+    @GetMapping("/models")
+    public String models(Model model) { model.addAttribute("menu","models"); model.addAttribute("pageTitle","모델 관리"); return "model/list"; }
+
+    // 공통코드 (PM)
+    @GetMapping("/common-codes")
+    public String commonCodes(Model model) { model.addAttribute("menu","codes"); model.addAttribute("pageTitle","공통코드"); return "common-code/list"; }
+
+    // 사용자 관리 (PM)
+    @GetMapping("/users")
+    public String users(Model model) { model.addAttribute("menu","users"); model.addAttribute("pageTitle","사용자 관리"); return "user/list"; }
+
+    // 설계 개선 이력 (ADMIN)
+    @GetMapping("/design-history")
+    public String designHistory(Model model) { model.addAttribute("menu","design"); model.addAttribute("pageTitle","설계 개선 이력"); return "design-history/list"; }
+
+    // 로그인
+    @GetMapping("/login")
+    public String login() { return "auth/login"; }
 }

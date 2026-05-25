@@ -24,6 +24,8 @@ public class SystemErrorLog {
     private String requestBody;
     @Column(name = "client_ip", length = 50)
     private String clientIp;
+    @Column(name = "stack_trace", columnDefinition = "TEXT")
+    private String stackTrace;
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
