@@ -41,6 +41,40 @@ git clone https://github.com/BackendFrameworkProgramming/RentalManagementSystem.
 > **Java 21 필요.** 로컬에 JDK 21이 없어도 `settings.gradle`의 foojay-resolver 플러그인이
 > Gradle 빌드 시 JDK 21을 자동으로 내려받습니다. (단, `java -jar` 직접 실행에는 JDK 21 런타임 필요)
 
+## 환경변수 (보안 설정)
+
+민감 정보와 운영 설정은 환경변수로 주입할 수 있습니다. **설정하지 않으면 안전한 기본값**으로 동작하므로
+로컬 실행 시 별도 설정 없이 그대로 돌아갑니다. 운영 서버에서는 아래 값을 환경변수로 주입하세요.
+
+| 환경변수 | 용도 | 기본값 |
+|----------|------|--------|
+| `DB_USERNAME` | DB 계정 | `team3` |
+| `DB_PASSWORD` | DB 비밀번호 | (코드 기본값 — **운영 시 반드시 주입 권장**) |
+| `JWT_SECRET` | JWT 서명 키 | (코드 기본값 — **운영 시 반드시 주입 권장**) |
+| `JPA_SHOW_SQL` | SQL 콘솔 출력 | `false` (로컬 디버깅 시 `true`) |
+| `JPA_FORMAT_SQL` | SQL 포맷 출력 | `false` |
+| `LOG_SQL_LEVEL` | Hibernate SQL 로그 레벨 | `WARN` |
+| `LOG_APP_LEVEL` | 애플리케이션 로그 레벨 | `INFO` |
+
+> ⚠️ 현재 DB 비밀번호/JWT 시크릿의 기본값은 과거 git 히스토리에 노출된 적이 있습니다.
+> 실제 운영 보안을 위해서는 **비밀번호 교체 + 환경변수 주입**이 필요합니다.
+
+예) 로컬에서 SQL 보면서 디버깅:
+```bash
+JPA_SHOW_SQL=true ./gradlew bootRun
+```
+
+## 보안 (OWASP Top 10 대응)
+
+수업에서 다룬 OWASP Top 10 항목을 코드에 반영했습니다.
+
+- **A01 접근 통제**: 회원가입(계정 생성)은 ADMIN만 가능. 관리 화면/API는 역할 기반 접근제어(RBAC) 적용
+- **A02 암호화 실패**: 비밀번호는 BCrypt 단방향 해시. DB 비번/JWT 시크릿은 환경변수로 외부화
+- **A05 보안 설정 오류**: SQL/상세 로그 운영 기본값 off (내부 구조 노출 방지)
+- **A06 취약 구성요소**: 의존성 버전은 Spring BOM으로 고정(결정적 빌드)
+- **A07 인증 실패**: 로그인 5회 실패 시 5분 일시 잠금 (`LoginAttemptService`, 무차별 대입 방어)
+- **A09/A10 로깅·예외 처리**: 예외 응답에는 일반 메시지만, 상세(스택 트레이스)는 서버 로그/DB에만 기록
+
 ## 배포 (Deployment)
 
 운영 서버에 배포되어 있습니다.
