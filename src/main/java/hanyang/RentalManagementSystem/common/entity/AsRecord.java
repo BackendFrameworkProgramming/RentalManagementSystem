@@ -51,5 +51,6 @@ public class AsRecord extends BaseEntity {
     @Column(name = "repair_content", columnDefinition = "TEXT")
     private String repairContent;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
 }

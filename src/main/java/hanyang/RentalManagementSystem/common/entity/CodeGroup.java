@@ -23,6 +23,7 @@ public class CodeGroup extends BaseEntity {
     private String description;
 
     @Column(name = "use_yn", nullable = false)
+    @Builder.Default
     private Boolean useYn = true;
 
     @OneToMany(mappedBy = "codeGroup", fetch = FetchType.LAZY)

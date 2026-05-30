@@ -10,12 +10,17 @@ public class CommonSearchRequest {
     private String searchField;
     private String searchKeyword;
     private String searchStatus;
+    @Builder.Default
     private String orderField = "id";
+    @Builder.Default
     private String orderType = "DESC";
+    @Builder.Default
     private Integer page = 1;
+    @Builder.Default
     private Integer size = 20;
     private String startDate;
     private String endDate;
+    @Builder.Default
     private Boolean includeDeleted = false;
 
     public Pageable toPageable() {

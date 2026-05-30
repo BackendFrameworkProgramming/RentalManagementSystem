@@ -30,6 +30,7 @@ public class Employee extends BaseEntity {
     @Column(name = "hire_date")
     private LocalDate hireDate;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
     @Column(columnDefinition = "TEXT")
     private String remark;

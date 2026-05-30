@@ -37,5 +37,6 @@ public class BiometricData extends BaseEntity {
     @Column(name = "latest_location", length = 200)
     private String latestLocation;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
 }

@@ -13,5 +13,6 @@ public class AsType extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
     @Column(name = "use_yn", nullable = false)
+    @Builder.Default
     private Boolean useYn = true;
 }

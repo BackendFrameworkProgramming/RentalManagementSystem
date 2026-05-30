@@ -20,7 +20,9 @@ public class BranchManager extends BaseEntity {
     @Column(name = "manager_type", length = 10, nullable = false)
     private String managerType;
     @Column(nullable = false)
+    @Builder.Default
     private Boolean status = true;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
 }

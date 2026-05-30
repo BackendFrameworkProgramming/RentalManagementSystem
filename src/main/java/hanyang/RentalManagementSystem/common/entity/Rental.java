@@ -33,5 +33,6 @@ public class Rental extends BaseEntity {
     @Column(name = "return_date")
     private LocalDate returnDate;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
 }

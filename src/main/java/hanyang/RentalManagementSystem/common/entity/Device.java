@@ -18,6 +18,7 @@ public class Device extends BaseEntity {
     @JoinColumn(name = "branch_id")
     private Branch branch;
     @Column(length = 20, nullable = false)
+    @Builder.Default
     private String status = "INCOMING";
     @Column(length = 10)
     private String battery;
@@ -30,6 +31,7 @@ public class Device extends BaseEntity {
     @Column(name = "latest_as_date")
     private LocalDate latestAsDate;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
     @Column(columnDefinition = "TEXT")
     private String remark;

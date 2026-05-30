@@ -19,8 +19,10 @@ public class Team extends BaseEntity {
     @Column(name = "applied_date")
     private LocalDate appliedDate;
     @Column(name = "use_yn", nullable = false)
+    @Builder.Default
     private Boolean useYn = true;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
     @Column(name = "sort_order")
     private Integer sortOrder;

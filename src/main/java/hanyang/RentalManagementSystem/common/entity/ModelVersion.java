@@ -23,5 +23,6 @@ public class ModelVersion extends BaseEntity {
     @Column(name = "release_date")
     private LocalDate releaseDate;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
 }

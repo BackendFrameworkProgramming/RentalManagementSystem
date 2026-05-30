@@ -12,6 +12,7 @@ public class Branch extends BaseEntity {
     @Column(name = "branch_name", length = 100, nullable = false)
     private String branchName;
     @Column(nullable = false)
+    @Builder.Default
     private Boolean status = true;
     @Column(length = 200)
     private String address;
@@ -26,5 +27,6 @@ public class Branch extends BaseEntity {
     @Column(name = "applied_date")
     private LocalDate appliedDate;
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Boolean isDeleted = false;
 }

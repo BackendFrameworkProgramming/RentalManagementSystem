@@ -25,5 +25,6 @@ public class CodeDetail extends BaseEntity {
     private Integer sortOrder;
 
     @Column(name = "use_yn", nullable = false)
+    @Builder.Default
     private Boolean useYn = true;
 }
