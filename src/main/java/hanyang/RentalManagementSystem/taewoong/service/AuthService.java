@@ -1,6 +1,7 @@
 package hanyang.RentalManagementSystem.taewoong.service;
 
 import hanyang.RentalManagementSystem.common.config.JwtTokenProvider;
+import hanyang.RentalManagementSystem.common.config.LoginAttemptService;
 import hanyang.RentalManagementSystem.common.entity.RefreshToken;
 import hanyang.RentalManagementSystem.common.entity.User;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
@@ -24,6 +25,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
+    private final LoginAttemptService loginAttemptService;
 
     @Transactional
     public Map<String, Object> signup(Map<String, String> body) {
@@ -56,13 +58,22 @@ public class AuthService {
         String loginId = body.get("userLoginId");
         String password = body.get("password");
 
-        User user = userRepository.findByUserLoginIdAndIsDeletedFalse(loginId)
-                .orElseThrow(() -> new CustomException("LOGIN_FAILED", "아이디 또는 비밀번호가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED));
+        // OWASP A07(인증 실패): 무차별 대입 방어 - 임계치 초과 시 일시 잠금
+        if (loginId != null && loginAttemptService.isLocked(loginId)) {
+            long remain = loginAttemptService.remainingLockSeconds(loginId);
+            throw new CustomException("ACCOUNT_LOCKED",
+                    "로그인 시도 횟수를 초과했습니다. 약 " + ((remain / 60) + 1) + "분 후 다시 시도해주세요.",
+                    HttpStatus.TOO_MANY_REQUESTS);
+        }
 
-        if (user.getPassword() == null || !passwordEncoder.matches(password, user.getPassword())) {
+        User user = userRepository.findByUserLoginIdAndIsDeletedFalse(loginId).orElse(null);
+
+        if (user == null || user.getPassword() == null || !passwordEncoder.matches(password, user.getPassword())) {
+            if (loginId != null) loginAttemptService.loginFailed(loginId);
             throw new CustomException("LOGIN_FAILED", "아이디 또는 비밀번호가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED);
         }
 
+        loginAttemptService.loginSucceeded(loginId);
         refreshTokenRepository.deleteByUserId(user.getId());
         return generateTokens(user);
     }

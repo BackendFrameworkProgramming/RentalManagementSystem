@@ -31,6 +31,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/api/auth/login", "/api/auth/refresh").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/favicon.ico").permitAll()
+                // OWASP A01(접근 통제): 회원 가입(계정 생성)은 관리자만 가능하도록 제한
+                .requestMatchers("/api/auth/signup").hasRole("ADMIN")
                 .requestMatchers("/system-logs", "/models", "/common-codes", "/users", "/design-history").hasRole("ADMIN")
                 .requestMatchers("/api/system-logs/**", "/api/models/**", "/api/common-codes/**", "/api/users/**", "/api/design-history/**").hasRole("ADMIN")
                 .anyRequest().authenticated()

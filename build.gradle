@@ -4,6 +4,12 @@ plugins {
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
+// OWASP A06(취약하고 오래된 구성요소) 관련 메모:
+// - 모든 의존성 버전은 Spring Boot BOM(io.spring.dependency-management)으로 고정되어
+//   빌드가 결정적이다. jjwt(0.12.6), drvalue(v1.0.0) 등 직접 의존성도 버전을 명시했다.
+// - 취약점 스캔이 필요하면 OWASP dependency-check를 별도 환경에서 실행할 것.
+//   (Gradle 플러그인 직접 적용은 현재 Guava 전이 의존성 충돌로 빌드가 깨져 제외함)
+
 group = 'hanyang'
 version = '0.0.1-SNAPSHOT'
 
