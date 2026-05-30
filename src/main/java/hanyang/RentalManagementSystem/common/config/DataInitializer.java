@@ -28,10 +28,8 @@ public class DataInitializer implements CommandLineRunner {
                     .userName("관리자").role("ADMIN").email("admin@team3.com").contact("").build());
             log.info("[INIT] 관리자 계정 생성 완료 (admin / admin123)");
         }
-        if (designHistoryRepository.findAllByIsDeletedFalseOrderByRoundAsc().isEmpty()) {
-            seedDesignHistory();
-            log.info("[INIT] 설계 개선 이력 9건 시드 완료");
-        }
+        // 라운드별로 누락된 항목만 추가 시드한다(기존 DB에 새 라운드를 반영하기 위함).
+        seedDesignHistory();
     }
 
     private void seedDesignHistory() {
@@ -69,10 +67,19 @@ public class DataInitializer implements CommandLineRunner {
             +"{\"label\":\"JWT 로그인/인증\",\"before\":\"인증 없이 모든 페이지 접근 가능\",\"after\":\"JWT Access/Refresh Token + HttpOnly Cookie + 자동 갱신\",\"reason\":\"다른 조 대비 + 보안 수업 대비\"},"
             +"{\"label\":\"역할 기반 접근제어 (RBAC)\",\"before\":\"모든 사용자가 모든 페이지 접근 가능\",\"after\":\"ADMIN만 관리 페이지 접근. 일반 회원은 운영 화면 8개만\",\"reason\":\"관리/운영 기능 분리 필요\"},"
             +"{\"label\":\"에러 로그 상세조회 개선\",\"before\":\"에러 목록만 조회, 발생 화면 불명확\",\"after\":\"발생 화면 컬러 배지 + Draw 상세(Stack Trace 포함)\",\"reason\":\"교수님: '에러 코드를 명세화하라'\"}]");
+        seed(10,"5/30","교수님 보안 수업 + AI 검증","prof","OWASP Top 10 대응 + Java 21 업그레이드",
+            "[{\"label\":\"Java 17 -> 21 업그레이드\",\"before\":\"Java 17 toolchain. gradle-wrapper.jar 누락으로 clone 후 빌드 불가\",\"after\":\"Java 21 toolchain + foojay-resolver(JDK 자동 조달) + wrapper jar 커밋\",\"reason\":\"서버 배포 환경 통일 및 최신 LTS 적용\"},"
+            +"{\"label\":\"@Builder.Default 누락 버그 수정\",\"before\":\"@Builder 사용 시 isDeleted/useYn/status 등 기본값이 무시되고 null로 저장될 위험\",\"after\":\"16개 엔티티/DTO의 기본값 필드에 @Builder.Default 추가\",\"reason\":\"빌더 생성 시 NOT NULL 위반 및 NPE 방지\"},"
+            +"{\"label\":\"OWASP A05 보안 설정 노출 차단\",\"before\":\"show-sql=true, format_sql=true, 로그 DEBUG로 운영 시 SQL/테이블/컬럼 구조 노출\",\"after\":\"운영 기본값 off로 변경. 환경변수(JPA_SHOW_SQL 등)로만 토글\",\"reason\":\"교수님: '스택 트레이스/쿼리 노출로 내부 구조가 유출된다'\"},"
+            +"{\"label\":\"OWASP A02 시크릿 외부화\",\"before\":\"DB 비밀번호/JWT 시크릿이 application.properties에 평문 하드코딩\",\"after\":\"${DB_PASSWORD}, ${JWT_SECRET} 환경변수로 분리(기본값 fallback 유지)\",\"reason\":\"교수님: '민감 정보는 단방향/외부화로 보호해야 한다'\"},"
+            +"{\"label\":\"OWASP A07 로그인 무차별 대입 방어\",\"before\":\"로그인 실패 횟수 제한 없음 -> 무한 시도 가능\",\"after\":\"LoginAttemptService 추가. 5회 실패 시 5분 일시 잠금\",\"reason\":\"교수님: '인증 시도에 제한을 두고 카운팅/잠금이 필요하다'\"}]");
     }
 
     private void seed(int round, String date, String source, String type, String title, String changes) {
+        // 이미 존재하는 라운드는 건너뛴다(기존 DB와 충돌 방지, 신규 라운드만 추가).
+        if (designHistoryRepository.existsByRoundAndIsDeletedFalse(round)) return;
         designHistoryRepository.save(DesignHistory.builder()
                 .round(round).roundDate(date).source(source).sourceType(type).title(title).changes(changes).build());
+        log.info("[INIT] 설계 이력 라운드 {} 시드 완료", round);
     }
 }

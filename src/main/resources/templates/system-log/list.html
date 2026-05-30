@@ -38,6 +38,7 @@
             <tr><td><code>FORBIDDEN</code></td><td class="center">403</td><td>관리자 권한이 필요합니다.</td><td>일반 회원이 관리자 페이지 접근</td></tr>
             <tr><td><code>LOGIN_FAILED</code></td><td class="center">401</td><td>아이디 또는 비밀번호가 올바르지 않습니다.</td><td>로그인 실패</td></tr>
             <tr><td><code>DUPLICATE_LOGIN_ID</code></td><td class="center">409</td><td>이미 사용 중인 아이디입니다.</td><td>중복 아이디 등록 시도</td></tr>
+            <tr><td><code>ACCOUNT_LOCKED</code></td><td class="center">429</td><td>로그인 시도 횟수를 초과했습니다. 약 N분 후 다시 시도해주세요.</td><td>로그인 5회 실패 시 5분 잠금 (무차별 대입 방어)</td></tr>
             </tbody></table></div>
 
             <div class="spec-section"><div class="spec-title">디바이스 / 모델 / 파일</div>
