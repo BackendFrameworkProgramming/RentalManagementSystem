@@ -116,19 +116,9 @@ async function loadBranches(page){
     const data = res.data || [];
     branchesCache = data;
     document.getElementById('totalEl').textContent = res.pagination?.totalElements || 0;
-    // 주담당자 정보를 위해 각 지점별 담당자 조회 (주 담당자만)
-    const enriched = await Promise.all(data.map(async b => {
-        try {
-            const mr = await api(`/api/branches/${b.id}/managers?page=1&size=50`);
-            const main = (mr.data||[]).find(m => m.managerType === '주' && m.status);
-            return Object.assign({}, b, {
-                mainManagerName: main?.managerName || '-',
-                mainManagerContact: main?.contact || '-'
-            });
-        } catch(e){ return Object.assign({}, b, {mainManagerName:'-', mainManagerContact:'-'}); }
-    }));
+    // [FIX] 주담당자 정보는 서버 응답에 포함 (N+1 API 호출 제거)
     let html = '';
-    enriched.forEach((b, i) => {
+    data.forEach((b, i) => {
         const statusBadge = b.status
             ? '<span class="badge badge-임대대기">활성</span>'
             : '<span class="badge badge-폐기">비활성</span>';
@@ -137,15 +127,15 @@ async function loadBranches(page){
             <td class="center">${(curPage-1)*20 + i + 1}</td>
             <td class="center">${statusBadge}</td>
             <td>${b.branchName||'-'}</td>
-            <td><a href="#" onclick="openManagers(${b.id}, '${(b.branchName||'').replace(/'/g,'\\\'')}');return false">${b.mainManagerName}</a></td>
-            <td>${b.mainManagerContact}</td>
+            <td><a href="#" onclick="openManagers(${b.id}, ${i});return false">${b.mainManagerName || '-'}</a></td>
+            <td>${b.mainManagerContact || '-'}</td>
             <td>${b.address||'-'}</td>
             <td>${b.addressDetail||'-'}</td>
             <td>${b.managerName||'-'}</td>
             <td>${b.phone||'-'}</td>
             <td>${b.fax||'-'}</td>
             <td>
-                <button class="btn btn-sm" onclick='editBranch(${JSON.stringify(b).replace(/'/g,"&apos;")})'>수정</button>
+                <button class="btn btn-sm" onclick="editBranch(${i})">수정</button>
             </td>
         </tr>`;
     });
@@ -164,7 +154,10 @@ function newBranch(){
     openDraw('createDraw');
 }
 
-function editBranch(b){
+// [FIX] XSS 방지 — 인라인 JSON 대신 캐시 인덱스 사용
+function editBranch(idx){
+    const b = branchesCache[idx];
+    if (!b) return;
     document.getElementById('editId').value = b.id;
     document.getElementById('formTitle').textContent = '지점 수정';
     document.getElementById('f_branchName').value = b.branchName||'';
@@ -209,9 +202,11 @@ async function deleteSelected(){
 function saveAll(){ toast('변경사항을 행 단위 수정 버튼으로 저장하세요.'); }
 
 // === 담당자 ===
-async function openManagers(branchId, branchName){
+// [FIX] XSS 방지 — branchName을 캐시 인덱스로 조회
+async function openManagers(branchId, idx){
+    const branchName = branchesCache[idx]?.branchName || '지점';
     document.getElementById('mgrBranchId').value = branchId;
-    document.getElementById('managerDrawTitle').textContent = (branchName||'지점') + ' > 담당자 현황';
+    document.getElementById('managerDrawTitle').textContent = branchName + ' > 담당자 현황';
     await loadManagers(branchId);
     openDraw('managerDraw');
 }

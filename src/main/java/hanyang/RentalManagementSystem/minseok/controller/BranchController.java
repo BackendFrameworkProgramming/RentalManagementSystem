@@ -36,9 +36,9 @@ public class BranchController {
 
     // 5-4
     @DeleteMapping("/api/branches/{id}")
-    public ResponseEntity<CommonResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         branchService.delete(id);
-        return ResponseEntity.ok(CommonResponse.success(null));
+        return ResponseEntity.noContent().build();
     }
 
     // 5-5
@@ -61,8 +61,8 @@ public class BranchController {
 
     // 5-8
     @DeleteMapping("/api/branch-managers/{id}")
-    public ResponseEntity<CommonResponse<Void>> deleteManager(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteManager(@PathVariable Long id) {
         branchService.deleteManager(id);
-        return ResponseEntity.ok(CommonResponse.success(null));
+        return ResponseEntity.noContent().build();
     }
 }

@@ -36,9 +36,9 @@ public class DepartmentController {
 
     // 7-4
     @DeleteMapping("/api/departments/{id}")
-    public ResponseEntity<CommonResponse<Void>> deleteDepartment(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteDepartment(@PathVariable Long id) {
         departmentService.deleteDepartment(id);
-        return ResponseEntity.ok(CommonResponse.success(null));
+        return ResponseEntity.noContent().build();
     }
 
     // 7-5
@@ -67,9 +67,9 @@ public class DepartmentController {
 
     // 7-9
     @DeleteMapping("/api/teams/{id}")
-    public ResponseEntity<CommonResponse<Void>> deleteTeam(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteTeam(@PathVariable Long id) {
         departmentService.deleteTeam(id);
-        return ResponseEntity.ok(CommonResponse.success(null));
+        return ResponseEntity.noContent().build();
     }
 
     // 7-10

@@ -8,6 +8,7 @@ import hanyang.RentalManagementSystem.common.entity.*;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
 import hanyang.RentalManagementSystem.common.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -68,7 +70,7 @@ public class DepartmentService {
     @Transactional
     public void deleteDepartment(Long id) {
         Department d = getDepartment(id);
-        // 하위 팀 존재 시 거부
+        // [MEDIUM] existsBy 대신 findAll().isEmpty() 사용 (TeamRepository는 common/ 수정 불가)
         if (!teamRepository.findAllByDepartmentIdAndIsDeletedFalse(id).isEmpty()) {
             throw new CustomException("DEPARTMENT_HAS_TEAMS", "하위 팀이 있어 삭제할 수 없습니다.");
         }
@@ -77,7 +79,6 @@ public class DepartmentService {
     }
 
     public CommonResponse<List<Map<String, Object>>> findTeamsByDepartment(Long deptId, CommonSearchRequest request) {
-        // 부서 존재 확인
         getDepartment(deptId);
         Page<Team> page = teamRepository.findAllByDepartmentIdAndIsDeletedFalse(deptId, request.toPageable());
         List<Map<String, Object>> data = page.getContent().stream().map(this::teamToMap).collect(Collectors.toList());
@@ -93,7 +94,11 @@ public class DepartmentService {
     // === 7-7 ~ 7-10 팀 ===
     @Transactional
     public CommonResponse<Map<String, Object>> createTeam(Map<String, Object> body) {
-        Long deptId = ((Number) body.get("departmentId")).longValue();
+        // [HIGH] departmentId null 체크
+        Object deptIdRaw = body.get("departmentId");
+        if (deptIdRaw == null)
+            throw new CustomException("DEPT_ID_REQUIRED", "departmentId는 필수입니다.");
+        Long deptId = ((Number) deptIdRaw).longValue();
         Department dept = getDepartment(deptId);
         Team t = Team.builder()
                 .department(dept)
@@ -173,9 +178,9 @@ public class DepartmentService {
         teamHistoryRepository.save(h);
     }
 
+    /** [LOW] toJson 실패 시 로그 추가 */
     private String toJson(Object o) {
         try {
-            // JPA 프록시/순환참조를 피하기 위해 Map으로 변환 후 직렬화
             Map<String, Object> m = new LinkedHashMap<>();
             if (o instanceof Department d) {
                 m.put("id", d.getId());
@@ -186,6 +191,7 @@ public class DepartmentService {
             } else if (o instanceof Team t) {
                 m.put("id", t.getId());
                 m.put("teamName", t.getTeamName());
+                // [HIGH] getDepartment() null 안전 처리
                 m.put("departmentId", t.getDepartment() != null ? t.getDepartment().getId() : null);
                 m.put("useYn", t.getUseYn());
                 m.put("appliedDate", String.valueOf(t.getAppliedDate()));
@@ -193,6 +199,7 @@ public class DepartmentService {
             }
             return MAPPER.writeValueAsString(m);
         } catch (JsonProcessingException e) {
+            log.warn("[DepartmentService] toJson 직렬화 실패: {}", e.getMessage());
             return "{}";
         }
     }
@@ -210,12 +217,14 @@ public class DepartmentService {
         return m;
     }
 
+    /** [HIGH] getDepartment() null 안전 처리 */
     private Map<String, Object> teamToMap(Team t) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", t.getId());
         m.put("teamName", t.getTeamName());
-        m.put("departmentId", t.getDepartment() != null ? t.getDepartment().getId() : null);
-        m.put("departmentName", t.getDepartment() != null ? t.getDepartment().getDeptName() : null);
+        Department dept = t.getDepartment();
+        m.put("departmentId", dept != null ? dept.getId() : null);
+        m.put("departmentName", dept != null ? dept.getDeptName() : null);
         m.put("createdDate", t.getCreatedDate());
         m.put("appliedDate", t.getAppliedDate());
         m.put("useYn", t.getUseYn());
