@@ -97,16 +97,24 @@
 <script>
     let curPage = 1, curBranch = null, curSize = 20, branches = [];
 
+    // 🛡️ XSS 방어용 이스케이프 함수 (필수)
+    function escapeHtml(unsafe) {
+        if (unsafe == null || unsafe === '') return '-';
+        return String(unsafe).replace(/[&<>"']/g, function(m) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
+    }
+
     function formatStatus(status) {
         const map = {
             'APPLIED': '신청', 'RECEIPT_WAITING': '수령대기', 'RENTING': '사용중',
             'AS_RECEIVED': '이상접수', 'REPLACED': '교체사용', 'RETURNED': '반납'
         };
         const text = map[status] || status;
-        if (text === '사용중') return `<span style="color:blue; font-weight:bold">${text}</span>`;
-        if (text === '반납') return `<span style="color:gray">${text}</span>`;
-        if (text === '이상접수') return `<span style="color:red">${text}</span>`;
-        return `<span>${text}</span>`;
+        if (text === '사용중') return `<span style="color:blue; font-weight:bold">${escapeHtml(text)}</span>`;
+        if (text === '반납') return `<span style="color:gray">${escapeHtml(text)}</span>`;
+        if (text === '이상접수') return `<span style="color:red">${escapeHtml(text)}</span>`;
+        return `<span>${escapeHtml(text)}</span>`;
     }
 
     async function loadBranches() {
@@ -120,8 +128,8 @@
         branches.forEach(b => {
             totalAll += b.totalCount;
             totalRenting += b.rentingCount;
-            html += `<div class="left-panel-item" onclick="selectBranch(${b.branchId},'${b.branchName}')">
-                        <span>${b.branchName}</span>
+            html += `<div class="left-panel-item" onclick="selectBranch(${b.branchId},'${escapeHtml(b.branchName).replace(/'/g, "\\'")}')">
+                        <span>${escapeHtml(b.branchName)}</span>
                         <span class="count">${b.totalCount} / <span style="color:blue">${b.rentingCount}</span></span>
                      </div>`;
         });
@@ -153,7 +161,6 @@
 
     async function loadRentals(page) {
         curPage = page || 1;
-        // 💡 Number() 캐스팅 및 curSize 변수 업데이트
         curSize = Number(document.getElementById('pageSize').value);
 
         const p = new URLSearchParams({
@@ -162,7 +169,7 @@
             orderField: document.getElementById('orderField').value,
             orderType: document.getElementById('orderType').value,
             page: curPage,
-            size: curSize // 💡 curSize 적용
+            size: curSize
         });
 
         if (document.getElementById('sf').value && document.getElementById('sk').value) {
@@ -182,23 +189,23 @@
         if (!rows.length) {
             tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:30px;color:#aaa">데이터가 없습니다.</td></tr>';
         } else {
-            let i = (curPage - 1) * curSize; // 💡 순번 계산에 curSize 적용
+            let i = (curPage - 1) * curSize;
             tbody.innerHTML = rows.map(d => `<tr>
                 <td class="center"><input type="checkbox" class="ck" value="${d.id}"></td>
                 <td class="center">${++i}</td>
                 <td class="center">${formatStatus(d.status)}</td>
-                <td>${d.branchName || '-'}</td>
-                <td class="center"><a href="#" onclick="showHistory(${d.userId}, '${d.userName}'); return false;" style="font-weight:bold; color:#0056b3;">${d.userName || '-'}</a></td>
-                <td class="center">${d.userId || '-'}</td>
-                <td class="center">${d.applyDate || '-'}</td>
-                <td class="center">${d.expectedStartDate || '-'}</td>
-                <td class="center">${d.expectedReturnDate || '-'}</td>
-                <td class="center">${d.receiptDate || '-'}</td>
-                <td class="center">${d.wornStatus || '-'}</td>
-                <td class="center">${d.deviceId || '-'}</td>
-                <td class="center">${d.modelName || '-'}</td>
-                <td class="center">${d.battery || '-'}</td>
-                <td class="center">${d.returnDate || '-'}</td>
+                <td>${escapeHtml(d.branchName)}</td>
+                <td class="center"><a href="#" onclick="showHistory(${d.userId}, '${escapeHtml(d.userName).replace(/'/g, "\\'")}'); return false;" style="font-weight:bold; color:#0056b3;">${escapeHtml(d.userName)}</a></td>
+                <td class="center">${escapeHtml(d.userId)}</td>
+                <td class="center">${escapeHtml(d.applyDate)}</td>
+                <td class="center">${escapeHtml(d.expectedStartDate)}</td>
+                <td class="center">${escapeHtml(d.expectedReturnDate)}</td>
+                <td class="center">${escapeHtml(d.receiptDate)}</td>
+                <td class="center">${escapeHtml(d.wornStatus)}</td>
+                <td class="center">${escapeHtml(d.deviceId)}</td>
+                <td class="center">${escapeHtml(d.modelName)}</td>
+                <td class="center">${escapeHtml(d.battery)}</td>
+                <td class="center">${escapeHtml(d.returnDate)}</td>
             </tr>`).join('');
         }
         paginate(document.getElementById('paging'), res.pagination, 'loadRentals');
@@ -206,7 +213,8 @@
 
     async function showHistory(userId, userName) {
         document.getElementById('historyDrawTitle').textContent = `${userName} > 임대이력`;
-        const res = await api(`/api/users/${userId}/rentals?size=100`);
+        // 💡 백엔드 컨트롤러와 동일하게 경로 수정 완료 (/api/rentals/users/{userId})
+        const res = await api(`/api/rentals/users/${userId}?size=100`);
         const rows = res.data || [];
 
         const tbody = document.getElementById('historyBody');
@@ -217,14 +225,14 @@
             tbody.innerHTML = rows.map(d => `<tr>
                 <td class="center">${++i}</td>
                 <td class="center">${formatStatus(d.status)}</td>
-                <td class="center">${d.branchName || '-'}</td>
-                <td class="center">${d.expectedStartDate || '-'}</td>
-                <td class="center">${d.expectedReturnDate || '-'}</td>
-                <td class="center">${d.receiptDate || '-'}</td>
-                <td class="center">${d.wornStatus || '-'}</td>
-                <td class="center">${d.deviceId || '-'}</td>
-                <td class="center">${d.modelName || '-'}</td>
-                <td class="center">${d.returnDate || '-'}</td>
+                <td class="center">${escapeHtml(d.branchName)}</td>
+                <td class="center">${escapeHtml(d.expectedStartDate)}</td>
+                <td class="center">${escapeHtml(d.expectedReturnDate)}</td>
+                <td class="center">${escapeHtml(d.receiptDate)}</td>
+                <td class="center">${escapeHtml(d.wornStatus)}</td>
+                <td class="center">${escapeHtml(d.deviceId)}</td>
+                <td class="center">${escapeHtml(d.modelName)}</td>
+                <td class="center">${escapeHtml(d.returnDate)}</td>
             </tr>`).join('');
         }
         openDraw('historyDraw');

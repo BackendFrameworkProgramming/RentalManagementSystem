@@ -12,45 +12,50 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/rentals")
 @RequiredArgsConstructor
 public class RentalController {
 
     private final RentalService rentalService;
 
-    @GetMapping("/rentals")
+    // 1. 임대 목록 조회
+    @GetMapping
     public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getRentals(CommonSearchRequest request) {
         return ResponseEntity.ok(rentalService.getRentals(request));
     }
 
-    @PostMapping("/rentals")
+    // 2. 임대 등록 (신청)
+    @PostMapping
     public ResponseEntity<CommonResponse<Map<String, Object>>> createRental(@RequestBody Map<String, Object> body) {
         return ResponseEntity.status(HttpStatus.CREATED).body(rentalService.createRental(body));
     }
 
-    @PatchMapping("/rentals/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> updateRental(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    // 3. 임대 수정 (상태 변경, 반납 처리 등)
+    @PutMapping("/{id}")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> updateRental(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(rentalService.updateRental(id, body));
     }
 
-    @DeleteMapping("/rentals/{id}")
+    // 4. 임대 삭제
+    @DeleteMapping("/{id}")
     public ResponseEntity<CommonResponse<Void>> deleteRental(@PathVariable Long id) {
         rentalService.deleteRental(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
-    @GetMapping("/users/{id}/rentals")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getUserRentals(@PathVariable Long id, CommonSearchRequest request) {
-        return ResponseEntity.ok(rentalService.getUserRentals(id, request));
+    // 5. 모달용: 특정 유저의 임대 이력 조회
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getUserRentals(
+            @PathVariable Long userId,
+            CommonSearchRequest request) {
+        return ResponseEntity.ok(rentalService.getUserRentals(userId, request));
     }
 
-    @GetMapping("/branches/{id}/available-devices")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAvailableDevicesByBranch(@PathVariable Long id) {
-        return ResponseEntity.ok(rentalService.getAvailableDevicesByBranch(id));
-    }
-
-    @GetMapping("/rentals/summary/by-branch")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getRentalSummaryByBranch() {
+    // 6. 좌측 패널용: 지점별 요약 정보
+    @GetMapping("/summary/by-branch")
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getSummaryByBranch() {
         return ResponseEntity.ok(CommonResponse.success(rentalService.getRentalSummaryByBranch()));
     }
 }

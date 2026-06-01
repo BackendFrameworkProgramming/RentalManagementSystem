@@ -12,85 +12,50 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/as-records")
 @RequiredArgsConstructor
 public class AsRecordController {
 
     private final AsRecordService asRecordService;
 
-    // === AsRecord ===
-    @GetMapping("/as-records")
+    // 1. A/S 목록 조회 (기획서 메인 그리드)
+    @GetMapping
     public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAsRecords(CommonSearchRequest request) {
         return ResponseEntity.ok(asRecordService.getAsRecords(request));
     }
 
-    @PostMapping("/as-records")
+    // 2. A/S 등록 (신청)
+    @PostMapping
     public ResponseEntity<CommonResponse<Map<String, Object>>> createAsRecord(@RequestBody Map<String, Object> body) {
         return ResponseEntity.status(HttpStatus.CREATED).body(asRecordService.createAsRecord(body));
     }
 
-    @GetMapping("/as-records/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> getAsRecord(@PathVariable Long id) {
-        return ResponseEntity.ok(asRecordService.getAsRecord(id));
-    }
-
-    @PatchMapping("/as-records/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> updateAsRecord(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    // 3. A/S 수정 (상태 변경 등)
+    @PutMapping("/{id}")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> updateAsRecord(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(asRecordService.updateAsRecord(id, body));
     }
 
-    @DeleteMapping("/as-records/{id}")
+    // 4. A/S 삭제
+    @DeleteMapping("/{id}")
     public ResponseEntity<CommonResponse<Void>> deleteAsRecord(@PathVariable Long id) {
         asRecordService.deleteAsRecord(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
-    @GetMapping("/as-records/summary/by-vendor")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAsSummaryByVendor() {
-        return ResponseEntity.ok(CommonResponse.success(asRecordService.getAsSummaryByVendor()));
+    // 5. 모달용: 특정 유저의 A/S 이력 조회
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getUserAsRecords(
+            @PathVariable Long userId,
+            CommonSearchRequest request) {
+        return ResponseEntity.ok(asRecordService.getUserAsRecords(userId, request));
     }
 
-    // === Vendor ===
-    @GetMapping("/vendors")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getVendors(CommonSearchRequest request) {
-        return ResponseEntity.ok(asRecordService.getVendors(request));
-    }
-
-    @PostMapping("/vendors")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> createVendor(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(asRecordService.createVendor(body));
-    }
-
-    @PatchMapping("/vendors/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> updateVendor(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(asRecordService.updateVendor(id, body));
-    }
-
-    @DeleteMapping("/vendors/{id}")
-    public ResponseEntity<CommonResponse<Void>> deleteVendor(@PathVariable Long id) {
-        asRecordService.deleteVendor(id);
-        return ResponseEntity.ok(CommonResponse.success(null));
-    }
-
-    // === AsType ===
-    @GetMapping("/as-types")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getAsTypes(CommonSearchRequest request) {
-        return ResponseEntity.ok(asRecordService.getAsTypes(request));
-    }
-
-    @PostMapping("/as-types")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> createAsType(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(asRecordService.createAsType(body));
-    }
-
-    @PatchMapping("/as-types/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> updateAsType(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(asRecordService.updateAsType(id, body));
-    }
-
-    @DeleteMapping("/as-types/{id}")
-    public ResponseEntity<CommonResponse<Void>> deleteAsType(@PathVariable Long id) {
-        asRecordService.deleteAsType(id);
-        return ResponseEntity.ok(CommonResponse.success(null));
+    // 6. 좌측 패널용: 지점별 A/S 요약 (총 건수 / 진행중 건수)
+    @GetMapping("/summary/by-branch")
+    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> getSummaryByBranch() {
+        return ResponseEntity.ok(CommonResponse.success(asRecordService.getAsSummaryByBranch()));
     }
 }

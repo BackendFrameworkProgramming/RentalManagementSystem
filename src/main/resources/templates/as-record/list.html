@@ -1,73 +1,52 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('디바이스 AS 현황')}"></head>
+<head th:replace="~{fragments/layout :: head('디바이스 A/S 현황')}"></head>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
 <div class="page-wrapper">
     <div class="left-panel">
-        <div class="left-panel-header">업체</div>
+        <div class="left-panel-header">지점</div>
         <div class="left-panel-search">
-            <input type="text" id="vendorSearch" placeholder="검색" oninput="filterVendor()">
+            <input type="text" id="branchSearch" placeholder="검색" oninput="filterBranch()">
         </div>
-        <div style="padding: 10px 15px; font-size: 11px; font-weight: bold; color: #666; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
-            <span>업체</span>
-            <span>총수량/AS/<span style="color:red">접수</span>/<span style="color:blue">진행</span></span>
+        <div class="left-panel-list" id="branchList">
         </div>
-        <div class="left-panel-list" id="vendorList"></div>
     </div>
 
     <div class="main-content">
         <div class="toolbar">
-            <div class="toolbar-left">
-                <div class="breadcrumb">
-                    <span class="refresh" onclick="selectVendor(null,'전체')">⟳</span>
-                    <span id="breadcrumb">전체 > 디바이스 AS 현황</span>
-                </div>
+            <div class="breadcrumb">
+                <span class="refresh" onclick="selectBranch(null,'전체')">⟳</span>
+                <span id="breadcrumb">전체 > 디바이스 A/S 현황</span>
             </div>
             <div class="toolbar-right">
                 <button class="btn btn-delete" onclick="deleteSelected()">삭제</button>
-                <button class="btn btn-new" onclick="openDraw('createDraw')">신규</button>
-                <button class="btn btn-save" onclick="saveAll()">저장</button>
             </div>
         </div>
 
         <div class="search-bar">
             <select id="sf">
                 <option value="all">통합검색</option>
+                <option value="branchName">지점명</option>
                 <option value="deviceId">디바이스ID</option>
-                <option value="modelName">모델명</option>
-                <option value="receiptBy">접수자</option>
-                <option value="confirmBy">확인자</option>
-                <option value="manager">담당자</option>
+                <option value="userName">신청자명</option>
+                <option value="asDescription">증상</option>
             </select>
             <input type="text" id="sk" placeholder="검색어 입력 후 엔터" onkeydown="if(event.key==='Enter')loadAsRecords(1)">
             <button class="search-btn" onclick="loadAsRecords(1)">🔍</button>
-
-            <select id="orderField">
-                <option value="receiptDate">접수일</option>
-                <option value="completeDate">완료일</option>
-            </select>
-            <select id="orderType">
-                <option value="DESC">내림차순</option>
-                <option value="ASC">오름차순</option>
-            </select>
-
             <span class="total-info">총 <b id="totalEl">0</b>건</span>
-
             <select id="pageSize" onchange="loadAsRecords(1)" style="padding:4px 6px;font-size:12px;">
-                <option value="10">10건씩 보기</option>
                 <option value="20" selected>20건씩 보기</option>
                 <option value="50">50건씩 보기</option>
             </select>
         </div>
 
         <div class="table-wrap" style="overflow-x: auto;">
-            <table class="grid" style="min-width: 1500px;">
+            <table class="grid" style="min-width: 1200px;">
                 <thead><tr>
                     <th style="width:30px"><input type="checkbox" id="ckAll" onchange="toggleAll()"></th>
-                    <th>순번</th><th>이력</th><th>상태</th><th>지점발송일</th><th>유형</th>
-                    <th>접수일</th><th>접수자</th><th>확인자</th><th>확인일</th><th>수거일</th>
-                    <th>담당자</th><th>완료일</th><th>재발송일</th><th>디바이스ID</th><th>모델명</th><th>상세</th>
+                    <th>순번</th><th>상태</th><th>지점</th><th>신청자</th>
+                    <th>디바이스ID</th><th>모델명</th><th>증상</th><th>신청일</th>
                 </tr></thead>
                 <tbody id="tbody"></tbody>
             </table>
@@ -76,227 +55,132 @@
     </div>
 </div>
 
-<div class="draw-overlay" id="createDrawOverlay" onclick="closeDraw('createDraw')"></div>
-<div class="draw" id="createDraw">
-    <div class="draw-header">
-        <span>신규 AS 접수</span>
-        <button class="draw-close" onclick="closeDraw('createDraw')">×</button>
-    </div>
-    <div class="draw-body">
-        <div class="form-group"><label>디바이스 ID *</label><input id="newDeviceId" type="text" placeholder="예: DEV-001"></div>
-        <div class="form-group"><label>수리 업체</label><select id="newVendor"></select></div>
-        <div class="form-group"><label>AS 유형</label><select id="newType"></select></div>
-        <button class="btn btn-save" onclick="createAsRecord()" style="margin-top:20px;width:100%">저장</button>
-    </div>
-</div>
-
 <div class="draw-overlay" id="historyDrawOverlay" onclick="closeDraw('historyDraw')"></div>
-<div class="draw" id="historyDraw">
+<div class="draw" id="historyDraw" style="width: 800px;">
     <div class="draw-header">
-        <span id="historyDrawTitle">모델명 > AS 이력</span>
+        <span id="historyDrawTitle">이력 현황</span>
         <button class="draw-close" onclick="closeDraw('historyDraw')">×</button>
     </div>
     <div class="draw-body">
         <table class="grid">
             <thead><tr>
-                <th>순번</th><th>상태</th><th>지점발송일</th><th>접수일</th><th>접수자</th><th>확인자</th>
-                <th>확인일</th><th>수거일</th><th>담당자</th><th>완료일</th><th>재발송일</th><th>상세</th>
+                <th>순번</th><th>상태</th><th>지점</th><th>신청일</th>
+                <th>처리완료일</th><th>디바이스ID</th><th>모델명</th><th>증상</th>
             </tr></thead>
             <tbody id="historyBody"></tbody>
         </table>
     </div>
 </div>
 
-<div class="draw-overlay" id="detailDrawOverlay" onclick="closeDraw('detailDraw')"></div>
-<div class="draw" id="detailDraw">
-    <div class="draw-header">
-        <span id="detailDrawTitle">모델명 > AS 접수 및 수리 내역</span>
-        <button class="draw-close" onclick="closeDraw('detailDraw')">×</button>
-    </div>
-    <div class="draw-body">
-
-        <div style="margin-bottom: 25px;">
-            <h4 style="margin-bottom: 10px; color: #333; font-size: 15px;">접수내역</h4>
-            <div id="dtlReceiptContent" style="padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px; min-height: 120px; font-size: 14px; white-space: pre-wrap; line-height: 1.5;">-</div>
-        </div>
-
-        <div style="margin-bottom: 20px;">
-            <h4 style="margin-bottom: 10px; color: #333; font-size: 15px;">AS내역</h4>
-            <div id="dtlRepairContent" style="padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px; min-height: 120px; font-size: 14px; white-space: pre-wrap; line-height: 1.5;">-</div>
-        </div>
-
-    </div>
-</div>
-
 <script th:src="@{/js/common.js}"></script>
 <script>
-    let curPage = 1, curVendor = null, curSize = 20, vendors = [];
+    let curPage = 1, curBranch = null, curSize = 20;
 
-    function formatStatus(status) {
-        const map = {
-            'AS_RECEIVED': '접수', 'AS_PROGRESS': '진행', 'COMPLETED': '완료',
-            'RESHIPPED': '재출고', 'REPLACED': '교체'
-        };
-        const text = map[status] || status;
-        if (text === '접수') return `<span style="color:red; font-weight:bold">${text}</span>`;
-        if (text === '진행') return `<span style="color:blue; font-weight:bold">${text}</span>`;
-        if (text === '완료') return `<span style="color:gray">${text}</span>`;
-        return `<span>${text}</span>`;
+    // 🛡️ 보안 패치: XSS 방어 처리 함수 (필수)
+    function escapeHtml(unsafe) {
+        if (unsafe == null || unsafe === '') return '-';
+        return String(unsafe).replace(/[&<>"']/g, function(m) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
     }
 
-    async function loadVendorSummary() {
-        const res = await api('/api/as-records/summary/by-vendor');
-        vendors = res.data || [];
+    function formatAsStatus(status) {
+        const map = { 'AS_RECEIVED': '이상접수', 'AS_PROGRESS': '처리중', 'AS_COMPLETED': '완료' };
+        const text = map[status] || status;
+        if (text === '이상접수') return `<span style="color:red; font-weight:bold">${escapeHtml(text)}</span>`;
+        if (text === '처리중') return `<span style="color:blue">${escapeHtml(text)}</span>`;
+        if (text === '완료') return `<span style="color:gray">${escapeHtml(text)}</span>`;
+        return `<span>${escapeHtml(text)}</span>`;
+    }
 
-        let tAll = 0, tAs = 0, tRec = 0, tProg = 0;
+    async function loadBranches() {
+        const res = await api('/api/as-records/summary/by-branch');
+        const branches = res.data || [];
+        let totalAll = 0, totalProcessing = 0;
         let html = '';
 
-        vendors.forEach(v => {
-            tAll += Number(v.totalCount);
-            tAs += Number(v.asCount);
-            tRec += Number(v.receivedCount);
-            tProg += Number(v.progressCount);
-
-            html += `<div class="left-panel-item" onclick="selectVendor(${v.vendorId},'${v.vendorName}')">
-                        <span>${v.vendorName}</span>
-                        <span class="count">${v.totalCount}/${v.asCount}/<span style="color:red">${v.receivedCount}</span>/<span style="color:blue">${v.progressCount}</span></span>
+        branches.forEach(b => {
+            totalAll += b.totalCount;
+            totalProcessing += b.processingCount;
+            html += `<div class="left-panel-item" onclick="selectBranch(${b.branchId},'${escapeHtml(b.branchName)}')">
+                        <span>${escapeHtml(b.branchName)}</span>
+                        <span class="count">${b.totalCount} / <span style="color:red">${b.processingCount}</span></span>
                      </div>`;
         });
 
-        let allHtml = `<div class="left-panel-item active" onclick="selectVendor(null,'전체')">
+        let allHtml = `<div class="left-panel-item active" onclick="selectBranch(null,'전체')">
                           <span>전체</span>
-                          <span class="count">${tAll}/${tAs}/<span style="color:red">${tRec}</span>/<span style="color:blue">${tProg}</span></span>
+                          <span class="count">${totalAll} / <span style="color:red">${totalProcessing}</span></span>
                        </div>`;
-        document.getElementById('vendorList').innerHTML = allHtml + html;
+        document.getElementById('branchList').innerHTML = allHtml + html;
     }
 
-    function selectVendor(id, name) {
-        curVendor = id;
-        document.getElementById('breadcrumb').textContent = (name || '전체') + ' > 디바이스 AS 현황';
+    function selectBranch(id, name) {
+        curBranch = id;
+        document.getElementById('breadcrumb').textContent = (name || '전체') + ' > 디바이스 A/S 현황';
         document.querySelectorAll('.left-panel-item').forEach(el => el.classList.remove('active'));
         event?.target?.closest('.left-panel-item')?.classList.add('active');
         loadAsRecords(1);
     }
 
-    function filterVendor() {
-        const v = document.getElementById('vendorSearch').value.toLowerCase();
-        document.querySelectorAll('.left-panel-item').forEach(el => {
-            el.style.display = el.textContent.toLowerCase().includes(v) ? '' : 'none';
-        });
-    }
     async function loadAsRecords(page) {
         curPage = page || 1;
-        // 💡 Number() 캐스팅 및 curSize 변수 업데이트
         curSize = Number(document.getElementById('pageSize').value);
 
         const p = new URLSearchParams({
             searchField: document.getElementById('sf').value,
             searchKeyword: document.getElementById('sk').value,
-            orderField: document.getElementById('orderField').value,
-            orderType: document.getElementById('orderType').value,
-            page: curPage,
-            size: curSize // 💡 curSize 적용
+            page: curPage, size: curSize
         });
-
-
-        if (document.getElementById('sf').value && document.getElementById('sk').value) {
-            p.set('searchKeyword', document.getElementById('sk').value);
-        }
 
         const res = await api('/api/as-records?' + p);
-        const rows = (res.data || []).filter(d => {
-            if (curVendor === null) return true;
-            return d.vendorId === curVendor;
-        });
+        const rows = (res.data || []).filter(d => curBranch === null || d.branchId === curBranch);
 
         document.getElementById('totalEl').textContent = res.pagination?.totalElements || 0;
         const tbody = document.getElementById('tbody');
 
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:30px;color:#aaa">데이터가 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#aaa">데이터가 없습니다.</td></tr>';
         } else {
-            let i = (curPage - 1) * curSize; // 💡 순번 계산에 curSize 적용
+            let i = (curPage - 1) * curSize;
             tbody.innerHTML = rows.map(d => `<tr>
                 <td class="center"><input type="checkbox" class="ck" value="${d.id}"></td>
                 <td class="center">${++i}</td>
-                <td class="center"><button class="btn" style="padding: 2px 6px; font-size:11px;" onclick="openHistory('${d.deviceId}', '${d.modelName}')">이력</button></td>
-                <td class="center">${formatStatus(d.status)}</td>
-                <td class="center">${d.branchSendDate || '-'}</td>
-                <td class="center">${d.typeName || '-'}</td>
-                <td class="center">${d.receiptDate || '-'}</td>
-                <td class="center">${d.receiptBy || '-'}</td>
-                <td class="center">${d.confirmBy || '-'}</td>
-                <td class="center">${d.confirmDate || '-'}</td>
-                <td class="center">${d.collectDate || '-'}</td>
-                <td class="center">${d.manager || '-'}</td>
-                <td class="center">${d.completeDate || '-'}</td>
-                <td class="center">${d.reshipDate || '-'}</td>
-                <td class="center">${d.deviceId || '-'}</td>
-                <td class="center">${d.modelName || '-'}</td>
-                <td class="center"><button class="btn" style="padding: 2px 6px; font-size:11px; background:#f0f0f0; color:#333; border:1px solid #ccc;" onclick="openDetail(${d.id}, '${d.modelName}')">상세</button></td>
+                <td class="center">${formatAsStatus(d.status)}</td>
+                <td>${escapeHtml(d.branchName)}</td>
+                <td class="center"><a href="#" onclick="showHistory(${d.userId}, '${escapeHtml(d.userName).replace(/'/g, "\\'")}')" style="font-weight:bold; color:#0056b3;">${escapeHtml(d.userName)}</a></td>
+                <td class="center">${escapeHtml(d.deviceId)}</td>
+                <td class="center">${escapeHtml(d.modelName)}</td>
+                <td class="truncate" style="max-width: 200px;" title="${escapeHtml(d.asDescription)}">${escapeHtml(d.asDescription)}</td>
+                <td class="center">${escapeHtml(d.requestDate)}</td>
             </tr>`).join('');
         }
         paginate(document.getElementById('paging'), res.pagination, 'loadAsRecords');
     }
 
-    async function openHistory(deviceId, modelName) {
-        document.getElementById('historyDrawTitle').textContent = `${modelName} > AS 이력`;
-        const res = await api(`/api/as-records?searchField=deviceId&searchKeyword=${deviceId}&size=100`);
-        const tbody = document.getElementById('historyBody');
+    // 모달 호출 로직
+    async function showHistory(userId, userName) {
+        document.getElementById('historyDrawTitle').textContent = `${userName} > A/S 이력`;
+        const res = await api(`/api/as-records/users/${userId}?size=100`);
         const rows = res.data || [];
+        const tbody = document.getElementById('historyBody');
+
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:20px;color:#aaa">이력 없음</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#aaa">이력 없음</td></tr>';
         } else {
             let i = 0;
-            // 💡 이력 모달 내 상세 버튼 onclick 속성 매핑 에러 해결 완료
             tbody.innerHTML = rows.map(d => `<tr>
                 <td class="center">${++i}</td>
-                <td class="center">${formatStatus(d.status)}</td>
-                <td class="center">${d.branchSendDate || '-'}</td>
-                <td class="center">${d.receiptDate || '-'}</td>
-                <td class="center">${d.receiptBy || '-'}</td>
-                <td class="center">${d.confirmBy || '-'}</td>
-                <td class="center">${d.confirmDate || '-'}</td>
-                <td class="center">${d.collectDate || '-'}</td>
-                <td class="center">${d.manager || '-'}</td>
-                <td class="center">${d.completeDate || '-'}</td>
-                <td class="center">${d.reshipDate || '-'}</td>
-                <td class="center"><button class="btn" style="padding: 2px 6px; font-size:11px;" onclick="openDetail(${d.id}, '${d.modelName}')">상세</button></td>
+                <td class="center">${formatAsStatus(d.status)}</td>
+                <td class="center">${escapeHtml(d.branchName)}</td>
+                <td class="center">${escapeHtml(d.requestDate)}</td>
+                <td class="center">${escapeHtml(d.completionDate)}</td>
+                <td class="center">${escapeHtml(d.deviceId)}</td>
+                <td class="center">${escapeHtml(d.modelName)}</td>
+                <td class="truncate" style="max-width: 150px;" title="${escapeHtml(d.asDescription)}">${escapeHtml(d.asDescription)}</td>
             </tr>`).join('');
         }
         openDraw('historyDraw');
-    }
-
-    // 💡 읽기 전용 전용 openDetail 매핑 로직
-    // [상세] 버튼 클릭 시 (기획서 매핑)
-    async function openDetail(id, modelName) {
-        document.getElementById('detailDrawTitle').textContent = `${modelName} > AS 접수 및 수리 내역`;
-        const res = await api(`/api/as-records/${id}`);
-        const d = res.data || {};
-
-        document.getElementById('dtlReceiptContent').textContent = d.receiptContent || '접수 내역이 없습니다.'; // 빈 값일 때 임시 텍스트
-        document.getElementById('dtlRepairContent').textContent = d.repairContent || 'AS 내역이 없습니다.'; // 빈 값일 때 임시 텍스트
-
-        openDraw('detailDraw');
-    }
-
-    async function loadSelectOptions() {
-        const vRes = await api('/api/vendors?size=100');
-        const tRes = await api('/api/as-types?size=100');
-        document.getElementById('newVendor').innerHTML = '<option value="">업체 선택 안함</option>' + (vRes.data || []).map(v => `<option value="${v.id}">${v.vendorName}</option>`).join('');
-        document.getElementById('newType').innerHTML = '<option value="">유형 선택 안함</option>' + (tRes.data || []).map(t => `<option value="${t.id}">${t.typeName}</option>`).join('');
-    }
-
-    async function createAsRecord() {
-        const body = {
-            deviceId: document.getElementById('newDeviceId').value,
-            vendorId: document.getElementById('newVendor').value,
-            asTypeId: document.getElementById('newType').value
-        };
-        if(!body.deviceId) { toast('디바이스 ID를 입력하세요.', 'error'); return; }
-        const r = await api('/api/as-records', 'POST', body);
-        if (r.success) { toast('신규 접수 완료'); closeDraw('createDraw'); loadAsRecords(1); loadVendorSummary(); }
-        else toast(r.error?.message || '실패', 'error');
     }
 
     function toggleAll() { document.querySelectorAll('.ck').forEach(c => c.checked = document.getElementById('ckAll').checked); }
@@ -307,13 +191,11 @@
         if (!ids.length) { toast('삭제할 대상을 선택하세요', 'error'); return; }
         if (!confirm(`${ids.length}건을 삭제하시겠습니까?`)) return;
         for (const id of ids) await api(`/api/as-records/${id}`, 'DELETE');
-        toast('삭제 완료'); loadAsRecords(curPage); loadVendorSummary();
+        toast('삭제 완료'); loadAsRecords(curPage); loadBranches();
     }
 
-    function saveAll() { toast('저장 완료');}
-
-    loadSelectOptions();
-    loadVendorSummary();
+    // 초기화
+    loadBranches();
     loadAsRecords(1);
 </script>
 </body>

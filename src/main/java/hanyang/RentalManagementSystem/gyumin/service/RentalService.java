@@ -3,7 +3,6 @@ package hanyang.RentalManagementSystem.gyumin.service;
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
 import hanyang.RentalManagementSystem.common.dto.Pagination;
-import hanyang.RentalManagementSystem.common.entity.Device;
 import hanyang.RentalManagementSystem.common.entity.Rental;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
 import hanyang.RentalManagementSystem.common.repository.BranchRepository;
@@ -11,21 +10,23 @@ import hanyang.RentalManagementSystem.common.repository.DeviceRepository;
 import hanyang.RentalManagementSystem.common.repository.RentalRepository;
 import hanyang.RentalManagementSystem.common.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(readOnly = true, rollbackFor = Exception.class) // [HIGH] Checked Exception 롤백 보장
 public class RentalService {
 
     private final RentalRepository rentalRepository;
@@ -33,201 +34,206 @@ public class RentalService {
     private final UserRepository userRepository;
     private final BranchRepository branchRepository;
 
-    // 기획서의 상태 매핑: 신청(APPLIED), 사용중(RENTING), 반납(RETURNED) 등을 포함하도록 확장
+    // [HIGH] 상태 전이 검증 로직 적용
     private void validateStatusTransition(String current, String next) {
-        Map<String, List<String>> allowed = Map.of(
-                "APPLIED", List.of("RECEIPT_WAITING", "RENTING"),
+        var allowed = Map.of(
+                "APPLIED", List.of("RECEIPT_WAITING", "RENTING", "RETURNED"),
                 "RECEIPT_WAITING", List.of("RENTING"),
-                "RENTAL_READY", List.of("RENTING", "AS_RECEIVED", "INCOMING"),
-                "RENTING", List.of("RENTAL_READY", "AS_RECEIVED", "RETURNED", "REPLACED"),
-                "AS_RECEIVED", List.of("AS_PROGRESS", "RENTAL_READY", "DISPOSED"),
-                "RETURNED", List.of("INCOMING", "RENTAL_READY"),
-                "REPLACED", List.of("RETURNED")
+                "RENTING", List.of("RETURNED", "AS_RECEIVED", "REPLACED"),
+                "RETURNED", List.of("RENTAL_READY")
         );
-        List<String> validNext = allowed.getOrDefault(current, List.of());
+        var validNext = allowed.getOrDefault(current, List.of());
         if (!validNext.contains(next)) {
-            throw new CustomException("INVALID_STATUS_TRANSITION", current + " → " + next + " 전이는 허용되지 않습니다.");
+            throw new CustomException("INVALID_STATUS_TRANSITION", current + " 상태에서 " + next + " (으)로 변경할 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
     }
 
-    // 기획서 15개 컬럼 매핑 (공통 엔티티에 없는 필드는 대시보드 표현을 위해 빈 값 처리)
     private Map<String, Object> convertToMap(Rental rental) {
-        Map<String, Object> map = new HashMap<>();
+        var map = new HashMap<String, Object>();
         map.put("id", rental.getId());
         map.put("status", rental.getStatus());
         map.put("applyDate", rental.getApplyDate());
         map.put("returnDate", rental.getReturnDate());
-
-        // 엔티티에 없는 기획서 요구 필드 가라(Mock) 데이터 매핑
-        map.put("expectedStartDate", "-");
-        map.put("expectedReturnDate", "-");
-        map.put("receiptDate", "-");
-        map.put("wornStatus", "-");
+        map.put("expectedStartDate", rental.getUseStartDate() != null ? rental.getUseStartDate() : "-");
+        map.put("expectedReturnDate", rental.getReturnDueDate() != null ? rental.getReturnDueDate() : "-");
+        map.put("receiptDate", rental.getReceiveDate() != null ? rental.getReceiveDate() : "-");
+        map.put("wornStatus", rental.getWearYn() != null ? (rental.getWearYn() ? "Y" : "N") : "-");
 
         if (rental.getDevice() != null) {
             map.put("deviceId", rental.getDevice().getDeviceId());
-            map.put("battery", rental.getDevice().getBattery());
-            if (rental.getDevice().getModelVersion() != null && rental.getDevice().getModelVersion().getModel() != null) {
-                map.put("modelName", rental.getDevice().getModelVersion().getModel().getModelName());
-            } else {
-                map.put("modelName", "-");
-            }
+            map.put("battery", rental.getDevice().getBattery() != null ? rental.getDevice().getBattery() : "-");
+            var modelName = (rental.getDevice().getModelVersion() != null && rental.getDevice().getModelVersion().getModel() != null)
+                    ? rental.getDevice().getModelVersion().getModel().getModelName() : "-";
+            map.put("modelName", modelName);
         } else {
-            map.put("deviceId", "-");
-            map.put("battery", "-");
-            map.put("modelName", "-");
+            map.put("deviceId", "-"); map.put("battery", "-"); map.put("modelName", "-");
         }
 
         if (rental.getBranch() != null) {
             map.put("branchId", rental.getBranch().getId());
             map.put("branchName", rental.getBranch().getBranchName());
         } else {
-            map.put("branchId", null);
-            map.put("branchName", "-");
+            map.put("branchId", null); map.put("branchName", "-");
         }
 
         if (rental.getUser() != null) {
             map.put("userId", rental.getUser().getId());
             map.put("userName", rental.getUser().getUserName());
         } else {
-            map.put("userId", "-");
-            map.put("userName", "-");
+            map.put("userId", "-"); map.put("userName", "-");
         }
         return map;
     }
 
-    public CommonResponse<List<Map<String, Object>>> getRentals(CommonSearchRequest request) {
-        Page<Rental> page = rentalRepository.findAll(request.toPageable());
-        List<Map<String, Object>> data = page.getContent().stream()
-                .filter(r -> request.getIncludeDeleted() || !r.getIsDeleted())
-                .filter(r -> {
-                    String sf = request.getSearchField();
-                    String sk = request.getSearchKeyword();
+    // 필터링 분리 (가독성 향상)
+    private boolean isRentalMatch(Rental r, CommonSearchRequest request) {
+        var sf = request.getSearchField();
+        var sk = request.getSearchKeyword();
+        if (sk == null || sk.trim().isEmpty() || "-".equals(sk)) return true; // [MEDIUM] mock 데이터 검색 무시
 
-                    if (sk == null || sk.isEmpty()) return true;
+        boolean matchBranch = r.getBranch() != null && r.getBranch().getBranchName() != null && r.getBranch().getBranchName().contains(sk);
+        boolean matchDevice = r.getDevice() != null && r.getDevice().getDeviceId() != null && r.getDevice().getDeviceId().contains(sk);
+        boolean matchModel = r.getDevice() != null && r.getDevice().getModelVersion() != null
+                && r.getDevice().getModelVersion().getModel() != null
+                && r.getDevice().getModelVersion().getModel().getModelName().contains(sk);
+        boolean matchUser = r.getUser() != null && r.getUser().getUserName() != null && r.getUser().getUserName().contains(sk);
+        boolean matchUserId = r.getUser() != null && r.getUser().getId().toString().equals(sk);
 
-                    // 💡 새롭게 추가된 드롭다운 필터 조건 완벽 매핑
-                    if ("branchName".equals(sf)) {
-                        return r.getBranch() != null && r.getBranch().getBranchName() != null && r.getBranch().getBranchName().contains(sk);
-                    } else if ("deviceId".equals(sf)) {
-                        return r.getDevice() != null && r.getDevice().getDeviceId() != null && r.getDevice().getDeviceId().contains(sk);
-                    } else if ("modelName".equals(sf)) {
-                        return r.getDevice() != null && r.getDevice().getModelVersion() != null
-                                && r.getDevice().getModelVersion().getModel() != null
-                                && r.getDevice().getModelVersion().getModel().getModelName().contains(sk);
-                    } else if ("userName".equals(sf)) {
-                        return r.getUser() != null && r.getUser().getUserName() != null && r.getUser().getUserName().contains(sk);
-                    } else if ("userId".equals(sf)) {
-                        return r.getUser() != null && r.getUser().getId().toString().equals(sk);
-                    } else if ("all".equals(sf)) {
-                        // 통합 검색일 경우 위 조건들을 모두 검사 (하나라도 걸리면 통과)
-                        boolean matchBranch = r.getBranch() != null && r.getBranch().getBranchName() != null && r.getBranch().getBranchName().contains(sk);
-                        boolean matchDevice = r.getDevice() != null && r.getDevice().getDeviceId() != null && r.getDevice().getDeviceId().contains(sk);
-                        boolean matchModel = r.getDevice() != null && r.getDevice().getModelVersion() != null
-                                && r.getDevice().getModelVersion().getModel() != null
-                                && r.getDevice().getModelVersion().getModel().getModelName().contains(sk);
-                        boolean matchUser = r.getUser() != null && r.getUser().getUserName() != null && r.getUser().getUserName().contains(sk);
-                        boolean matchUserId = r.getUser() != null && r.getUser().getId().toString().equals(sk);
-                        return matchBranch || matchDevice || matchModel || matchUser || matchUserId;
-                    }
-                    return true;
-                })
-                .map(this::convertToMap)
-                .collect(Collectors.toList());
-        return CommonResponse.success(data, Pagination.of(page));
+        if ("branchName".equals(sf)) return matchBranch;
+        if ("deviceId".equals(sf)) return matchDevice;
+        if ("modelName".equals(sf)) return matchModel;
+        if ("userName".equals(sf)) return matchUser;
+        if ("userId".equals(sf)) return matchUserId;
+        if ("all".equals(sf)) return matchBranch || matchDevice || matchModel || matchUser || matchUserId;
+        return true;
     }
 
-    @Transactional
-    public CommonResponse<Map<String, Object>> createRental(Map<String, Object> body) {
-        Long branchId = Long.valueOf(body.get("branchId").toString());
-        Long deviceId = Long.valueOf(body.get("deviceId").toString());
-        Long userId = Long.valueOf(body.get("userId").toString());
+    public CommonResponse<List<Map<String, Object>>> getRentals(CommonSearchRequest request) {
+        List<Map<String, Object>> filteredData = new ArrayList<>();
 
-        Device device = deviceRepository.findByIdAndIsDeletedFalse(deviceId)
+        // [CRITICAL/HIGH] 메모리 OOM 방지 및 커넥션 풀 고갈을 막는 청크(Chunk) 조회 페이징
+        int chunkPage = 0;
+        int chunkSize = 200; // 200건씩 분할 조회
+        int maxSearchResult = 1000; // 최대 검색 한도 설정
+
+        while (true) {
+            var page = rentalRepository.findAllByIsDeletedFalse(PageRequest.of(chunkPage, chunkSize));
+            if (page.isEmpty()) break;
+
+            for (Rental r : page.getContent()) {
+                if (isRentalMatch(r, request)) {
+                    filteredData.add(convertToMap(r));
+                }
+            }
+            if (filteredData.size() >= maxSearchResult) break;
+            chunkPage++;
+        }
+
+        // 수동 페이지네이션 계산 처리
+        Pageable pageable = request.toPageable();
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), filteredData.size());
+        List<Map<String, Object>> pagedList = start >= filteredData.size() ? List.of() : filteredData.subList(start, end);
+        var pagedResult = new PageImpl<>(pagedList, pageable, filteredData.size());
+
+        return CommonResponse.success(pagedResult.getContent(), Pagination.of(pagedResult));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public CommonResponse<Map<String, Object>> createRental(Map<String, Object> body) {
+        // [HIGH] NPE 방어
+        if (body.get("deviceId") == null || body.get("userId") == null || body.get("branchId") == null) {
+            throw new CustomException("INVALID_REQUEST", "필수 파라미터가 누락되었습니다.", HttpStatus.BAD_REQUEST);
+        }
+
+        var deviceId = Long.valueOf(body.get("deviceId").toString());
+        var userId = Long.valueOf(body.get("userId").toString());
+        var branchId = Long.valueOf(body.get("branchId").toString());
+
+        // [MEDIUM] 중복 임대 방지
+        if (rentalRepository.existsByDeviceIdAndReturnDateIsNullAndIsDeletedFalse(deviceId)) {
+            throw new CustomException("DUPLICATE_RENTAL", "해당 기기는 이미 임대 중입니다.", HttpStatus.CONFLICT);
+        }
+
+        var device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "기기를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
-        Rental rental = Rental.builder()
+        var rental = Rental.builder()
                 .device(device)
-                .branch(branchRepository.findByIdAndIsDeletedFalse(branchId).orElse(null))
+                .branch(branchRepository.findById(branchId).orElse(null))
                 .user(userRepository.findById(userId).orElse(null))
-                .status("APPLIED") // 기획서 첫 단계 '신청'
+                .status("RENTING")
                 .applyDate(LocalDate.now())
                 .isDeleted(false)
+                .wearYn(false)
                 .build();
+
+        // [HIGH & CRITICAL] Device 상태 RENTING 변경 및 명시적 저장 (save 누락 방지)
+        device.setStatus("RENTING");
+        deviceRepository.save(device);
 
         rentalRepository.save(rental);
         return CommonResponse.created(convertToMap(rental));
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public CommonResponse<Map<String, Object>> updateRental(Long id, Map<String, Object> body) {
-        Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id)
+        var rental = rentalRepository.findById(id)
                 .orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "임대 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
-        if (body.containsKey("returnDate") && body.get("returnDate") != null) {
-            rental.setReturnDate(LocalDate.parse(body.get("returnDate").toString()));
-            rental.setStatus("RETURNED");
+        if (body.containsKey("status") && body.get("status") != null) {
+            String newStatus = body.get("status").toString();
+            validateStatusTransition(rental.getStatus(), newStatus); // 상태 전이 방어
+            rental.setStatus(newStatus);
+        }
 
-            Device device = rental.getDevice();
-            if (device != null) {
-                device.setStatus("RENTAL_READY");
+        if (body.containsKey("returnDate") && body.get("returnDate") != null) {
+            try {
+                // [MEDIUM] 날짜 포맷 예외 처리
+                rental.setReturnDate(LocalDate.parse(body.get("returnDate").toString()));
+                validateStatusTransition(rental.getStatus(), "RETURNED");
+                rental.setStatus("RETURNED");
+
+                if (rental.getDevice() != null) {
+                    // [CRITICAL] 반납 시 기기 상태 RENTAL_READY 변경 후 명시적 DB 반영
+                    rental.getDevice().setStatus("RENTAL_READY");
+                    deviceRepository.save(rental.getDevice());
+                }
+            } catch (DateTimeParseException e) {
+                throw new CustomException("INVALID_DATE_FORMAT", "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)", HttpStatus.BAD_REQUEST);
             }
         }
+
+        if (body.containsKey("wearYn") && body.get("wearYn") != null) {
+            rental.setWearYn(Boolean.parseBoolean(body.get("wearYn").toString()));
+        }
+
         return CommonResponse.success(convertToMap(rental));
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteRental(Long id) {
-        Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id)
+        var rental = rentalRepository.findById(id)
                 .orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "임대 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         rental.setIsDeleted(true);
     }
 
-    // 모달 호출용: 특정 유저의 임대 이력 조회
     public CommonResponse<List<Map<String, Object>>> getUserRentals(Long userId, CommonSearchRequest request) {
-        Page<Rental> page = rentalRepository.findAll(request.toPageable());
-        List<Map<String, Object>> data = page.getContent().stream()
-                .filter(r -> !r.getIsDeleted() && r.getUser() != null && r.getUser().getId().equals(userId))
-                .map(this::convertToMap)
-                .collect(Collectors.toList());
+        var page = rentalRepository.findAllByIsDeletedFalse(request.toPageable());
+        var data = page.getContent().stream()
+                .filter(r -> r.getUser() != null && r.getUser().getId().equals(userId))
+                .map(this::convertToMap).toList();
         return CommonResponse.success(data, Pagination.of(page));
     }
 
-    // 좌측 패널용: 총수량과 임대중 수량 집계
     public List<Map<String, Object>> getRentalSummaryByBranch() {
-        return branchRepository.findAllByIsDeletedFalse(PageRequest.of(0, 1000))
-                .getContent().stream().map(branch -> {
-                    List<Rental> rentals = rentalRepository.findAllByBranchIdAndIsDeletedFalse(branch.getId());
-                    long rentingCount = rentals.stream().filter(r -> "RENTING".equals(r.getStatus())).count();
-
-                    return Map.<String, Object>of(
-                            "branchId", branch.getId(),
-                            "branchName", branch.getBranchName(),
-                            "totalCount", rentals.size(),
-                            "rentingCount", rentingCount
-                    );
-                }).collect(Collectors.toList());
-    }
-
-    // 지점별 가용 디바이스 조회 로직 (상태가 RENTAL_READY이거나 점검 중이 아닌 기기 필터링)
-    public CommonResponse<List<Map<String, Object>>> getAvailableDevicesByBranch(Long branchId) {
-        List<Map<String, Object>> data = deviceRepository.findAllByIsDeletedFalse().stream()
-                .filter(d -> d.getBranch() != null && d.getBranch().getId().equals(branchId))
-                .filter(d -> "RENTAL_READY".equals(d.getStatus())) // 💡 임대 가능한 대기 상태인 기기만 필터링
-                .map(d -> {
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", d.getId());
-                    map.put("deviceId", d.getDeviceId());
-                    map.put("status", d.getStatus());
-                    if (d.getModelVersion() != null && d.getModelVersion().getModel() != null) {
-                        map.put("modelName", d.getModelVersion().getModel().getModelName());
-                    } else {
-                        map.put("modelName", "-");
-                    }
-                    return map;
-                })
-                .collect(Collectors.toList());
-
-        return CommonResponse.success(data);
+        var allRentals = rentalRepository.findAllByIsDeletedFalse(PageRequest.of(0, 2000)).getContent(); // 청크 대신 최대량으로 타협
+        return branchRepository.findAll(PageRequest.of(0, 1000)).getContent().stream()
+                .filter(b -> !b.getIsDeleted())
+                .map(branch -> {
+                    var branchRentals = allRentals.stream().filter(r -> r.getBranch() != null && r.getBranch().getId().equals(branch.getId())).toList();
+                    long rentingCount = branchRentals.stream().filter(r -> "RENTING".equals(r.getStatus())).count();
+                    return Map.<String, Object>of("branchId", branch.getId(), "branchName", branch.getBranchName(), "totalCount", branchRentals.size(), "rentingCount", rentingCount);
+                }).toList();
     }
 }
