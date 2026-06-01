@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -216,7 +217,11 @@ public class EmployeeService {
             throw new CustomException("INVALID_REQUEST", "필수 값이 누락되었습니다.");
         }
 
-        return Long.valueOf(value.toString());
+        try {
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException e) {
+            throw new CustomException("INVALID_REQUEST", "숫자 형식이 올바르지 않습니다: " + value);
+        }
     }
 
     private String toString(Object value) {
@@ -224,8 +229,14 @@ public class EmployeeService {
     }
 
     private LocalDate toLocalDate(Object value) {
-        return value == null || value.toString().isBlank()
-                ? null
-                : LocalDate.parse(value.toString());
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+
+        try {
+            return LocalDate.parse(value.toString());
+        } catch (DateTimeParseException e) {
+            throw new CustomException("INVALID_REQUEST", "날짜 형식이 올바르지 않습니다(YYYY-MM-DD): " + value);
+        }
     }
 }

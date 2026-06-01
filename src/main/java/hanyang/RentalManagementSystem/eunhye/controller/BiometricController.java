@@ -23,6 +23,12 @@ public class BiometricController {
         return ResponseEntity.ok(biometricService.getBiometricDataList(page, size));
     }
 
+    // 구체 경로(/summary/by-model)를 /{id} 보다 먼저 선언해 라우트 충돌을 방지한다.
+    @GetMapping("/api/biometric-data/summary/by-model")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> getSummaryByModel() {
+        return ResponseEntity.ok(biometricService.getSummaryByModel());
+    }
+
     @GetMapping("/api/biometric-data/{id}")
     public ResponseEntity<CommonResponse<Map<String, Object>>> getBiometricDataDetail(
             @PathVariable Long id
@@ -67,10 +73,5 @@ public class BiometricController {
             @RequestBody Map<String, Object> body
     ) {
         return ResponseEntity.ok(biometricService.updateEmergencyRecord(id, body));
-    }
-
-    @GetMapping("/api/biometric-data/summary/by-model")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> getSummaryByModel() {
-        return ResponseEntity.ok(biometricService.getSummaryByModel());
     }
 }

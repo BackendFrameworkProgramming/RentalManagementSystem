@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 @Service
@@ -184,14 +185,12 @@ public class BiometricService {
     @Transactional(readOnly = true)
     public CommonResponse<Map<String, Object>> getSummaryByModel() {
 
-        List<BiometricData> biometricDataList =
-                biometricDataRepository.findAllByIsDeletedFalse(PageRequest.of(0, 9999)).getContent();
+        Map<String, Long> summary = new LinkedHashMap<>();
 
-        Map<String, Integer> summary = new LinkedHashMap<>();
-
-        for (BiometricData biometricData : biometricDataList) {
-            String modelName = getModelName(biometricData.getDevice());
-            summary.put(modelName, summary.getOrDefault(modelName, 0) + 1);
+        for (Object[] row : biometricDataRepository.countByModelName()) {
+            String modelName = row[0] != null ? row[0].toString() : "-";
+            Long count = ((Number) row[1]).longValue();
+            summary.merge(modelName, count, Long::sum);
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -347,13 +346,23 @@ public class BiometricService {
             throw new CustomException("INVALID_REQUEST", "필수 값이 누락되었습니다.");
         }
 
-        return Long.valueOf(value.toString());
+        try {
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException e) {
+            throw new CustomException("INVALID_REQUEST", "숫자 형식이 올바르지 않습니다: " + value);
+        }
     }
 
     private Integer toInteger(Object value) {
-        return value == null || value.toString().isBlank()
-                ? null
-                : Integer.valueOf(value.toString());
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+
+        try {
+            return Integer.valueOf(value.toString());
+        } catch (NumberFormatException e) {
+            throw new CustomException("INVALID_REQUEST", "숫자 형식이 올바르지 않습니다: " + value);
+        }
     }
 
     private String toString(Object value) {
@@ -361,8 +370,14 @@ public class BiometricService {
     }
 
     private LocalDate toLocalDate(Object value) {
-        return value == null || value.toString().isBlank()
-                ? null
-                : LocalDate.parse(value.toString());
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+
+        try {
+            return LocalDate.parse(value.toString());
+        } catch (DateTimeParseException e) {
+            throw new CustomException("INVALID_REQUEST", "날짜 형식이 올바르지 않습니다(YYYY-MM-DD): " + value);
+        }
     }
 }

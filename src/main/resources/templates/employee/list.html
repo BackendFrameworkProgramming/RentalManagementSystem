@@ -94,28 +94,32 @@
             height:calc(100vh - 150px);
         ">
 
-            <div class="table-wrap" style="height:100%; overflow:auto;">
-                <table class="grid">
-                    <thead>
-                    <tr>
-                        <th style="width:35px;">선택</th>
-                        <th>No</th>
-                        <th>이력</th>
-                        <th>근무형태</th>
-                        <th>이름</th>
-                        <th>사원번호</th>
-                        <th>부서</th>
-                        <th>팀</th>
-                        <th>직급</th>
-                        <th>근무상태</th>
-                        <th>근무상태적용일</th>
-                        <th>입사일</th>
-                        <th>비고</th>
-                    </tr>
-                    </thead>
+            <div style="display:flex; flex-direction:column; height:100%; min-height:0;">
+                <div class="table-wrap" style="flex:1; overflow:auto;">
+                    <table class="grid">
+                        <thead>
+                        <tr>
+                            <th style="width:35px;">선택</th>
+                            <th>No</th>
+                            <th>이력</th>
+                            <th>근무형태</th>
+                            <th>이름</th>
+                            <th>사원번호</th>
+                            <th>부서</th>
+                            <th>팀</th>
+                            <th>직급</th>
+                            <th>근무상태</th>
+                            <th>근무상태적용일</th>
+                            <th>입사일</th>
+                            <th>비고</th>
+                        </tr>
+                        </thead>
 
-                    <tbody id="tbody"></tbody>
-                </table>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination-bar" id="paging"></div>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:10px; height:100%;">
@@ -216,9 +220,13 @@
     let currentDepartmentName = '경영';
     let currentTeamName = '경영지원';
     let employeeList = [];
+    let curPage = 1;
+    const curSize = 10;
 
-    async function loadEmployees() {
-        const res = await api(`/api/teams/${currentTeamId}/employees?page=1&size=10`);
+    async function loadEmployees(page) {
+        curPage = page || 1;
+
+        const res = await api(`/api/teams/${currentTeamId}/employees?page=${curPage}&size=${curSize}`);
 
         employeeList = res.data?.employees || [];
 
@@ -226,6 +234,8 @@
             res.pagination?.totalElements || employeeList.length;
 
         renderEmployees(employeeList);
+
+        paginate(document.getElementById('paging'), res.pagination, 'loadEmployees');
     }
 
     function renderEmployees(data) {
@@ -247,7 +257,7 @@
                 <td class="center" onclick="event.stopPropagation();">
                     <input type="checkbox" class="ck" value="${e.id}">
                 </td>
-                <td class="center">${i + 1}</td>
+                <td class="center">${(curPage - 1) * curSize + i + 1}</td>
                 <td class="center">이력</td>
                 <td>${e.employmentType || '-'}</td>
                 <td>${e.empName || '-'}</td>
@@ -326,7 +336,7 @@
 
         if (res.success) {
             toast(id ? '수정 완료' : '등록 완료');
-            await loadEmployees();
+            await loadEmployees(id ? curPage : 1);
             openEmployeeForm();
         } else {
             toast(res.error?.message || '저장 실패', 'error');
@@ -348,7 +358,7 @@
         }
 
         toast('삭제 완료');
-        await loadEmployees();
+        await loadEmployees(curPage);
         openEmployeeForm();
     }
 
