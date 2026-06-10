@@ -88,13 +88,58 @@ JPA_SHOW_SQL=true ./gradlew bootRun
       취약 라이브러리 점검. (Gradle 플러그인 직접 적용은 의존성 충돌로 보류)
 - [ ] **배포 전 보안 점검 절차화**: 런칭 전 보안 점검 툴 1회 실행 + AI 코드 검증을 거쳐 배포하는
       절차를 팀 규칙으로 정착. (교수님 강조 사항)
+      → HTTPS 적용 완료 후 점검 도구 선정: **testssl.sh / Nikto**(서버 CLI),
+      **securityheaders.com / CryptCheck**(웹). `:8083` 비표준 포트라 SSL Labs·Mozilla
+      Observatory(443 전용)는 사용 불가.
 
 ## 배포 (Deployment)
 
 운영 서버에 배포되어 있습니다.
 
-- **접속 주소**: http://101.79.16.88:8083/login
+- **접속 주소 (HTTPS)**: https://rms.o-r.kr:8083/login
 - **서버 환경**: Naver Cloud Platform (Ubuntu 24.04), OpenJDK 21
+
+> 기존 `http://101.79.16.88:8083` 직접 접속은 현재 nginx가 8083을 TLS로 점유하므로
+> 더 이상 평문 HTTP로 열리지 않습니다. **위 HTTPS 도메인으로 접속하세요.**
+
+### HTTPS / TLS 구성 (2026-06-10 적용)
+
+ACG(클라우드 방화벽)가 80/443을 막고 8083만 열려 있어, **이미 열린 8083을 nginx가 TLS로
+점유**하고 실제 Spring 앱은 내부 포트(9083)로 옮기는 방식으로 HTTPS를 적용했다.
+
+```
+[브라우저] --HTTPS--> nginx (0.0.0.0:8083, TLS 종료) --HTTP--> Spring 앱 (127.0.0.1:9083)
+```
+
+| 구성 | 값 |
+|------|-----|
+| 도메인 | `rms.o-r.kr` (내도메인.한국 무료 도메인, A레코드 → 101.79.16.88) |
+| 인증서 | Let's Encrypt — **DNS-01 수동 인증** (HTTP-01은 80포트 미개방으로 불가) |
+| 인증서 경로 | `/etc/letsencrypt/live/rms.o-r.kr/` |
+| 만료일 | **2026-09-07** (수동 발급 — 자동 갱신 안 됨, 갱신 시 certbot 명령 재실행) |
+| nginx 설정 | `/etc/nginx/sites-available/rms.o-r.kr` (8083 ssl → 127.0.0.1:9083) |
+| 앱 포트 | `127.0.0.1:9083` (`config/application.properties` 오버라이드) |
+| 프로세스 관리 | PM2 (`name: team_3`, `id 2`) — `pm2 restart team_3` |
+
+#### 서버 포트 오버라이드 — `git pull` 안전
+
+nginx 뒤에서 앱은 9083으로 떠야 하지만, **추적되는** `src/main/resources/application.properties`는
+레포 원본(`8083`) 그대로 둔다. 서버 전용 설정은 **추적되지 않는** `config/application.properties`에
+두어, Spring Boot가 classpath 설정보다 **우선** 로드하게 한다:
+
+```properties
+# ~/team/team3/RentalManagementSystem/config/application.properties  (서버 전용, git 추적 안 됨)
+server.port=9083
+server.address=127.0.0.1
+server.forward-headers-strategy=framework
+```
+
+이 파일은 `.git/info/exclude`에 `/config/`로 등록돼 커밋되지 않으므로, 서버에서 `git pull` 해도
+**충돌·원복이 없다.** 배포는 평소대로:
+
+```bash
+git pull origin main && pm2 restart team_3
+```
 
 ### 서버 SSH 접속
 
@@ -184,6 +229,16 @@ git push origin main
 ```
 
 ## 변경 이력
+
+### 2026-06-10 — HTTPS(TLS) 적용 및 보안 점검 환경 구축
+
+- **무료 도메인 발급**: `rms.o-r.kr` (내도메인.한국, A레코드 → 101.79.16.88)
+- **Let's Encrypt 인증서 발급**: DNS-01 수동 인증 (ACG 80/443 미개방으로 HTTP-01 불가)
+- **nginx 리버스 프록시 구성**: 8083을 nginx가 TLS 종료 → 내부 `127.0.0.1:9083` 앱으로 전달
+- **앱 포트 이동**: 8083 → 9083 (추적 안 되는 `config/application.properties`로 오버라이드 → `git pull` 안전)
+- **리다이렉트 정상화**: `X-Forwarded-Host/Port` 헤더 추가로 프록시 뒤 스킴/포트 유실 해결
+- **접속 주소**: https://rms.o-r.kr:8083/login
+- 자세한 구성·주의사항은 [배포 > HTTPS / TLS 구성](#https--tls-구성-2026-06-10-적용) 참고
 
 ### 2026-05-30 — Java 21 업그레이드 및 서버 배포
 
