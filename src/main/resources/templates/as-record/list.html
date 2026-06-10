@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('디바이스 A/S 현황')}"></head>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('디바이스 A/S 현황')}"><title>AS 현황</title></head>
 <body>
 <div th:replace="~{fragments/layout :: header}"></div>
 <div class="page-wrapper">
     <div class="left-panel">
         <div class="left-panel-header">지점</div>
         <div class="left-panel-search">
-            <input type="text" id="branchSearch" placeholder="검색" oninput="filterBranch()">
+            <input type="text" id="branchSearch" placeholder="검색" aria-label="지점 검색" oninput="filterBranch()">
         </div>
         <div class="left-panel-list" id="branchList">
         </div>
@@ -15,9 +15,11 @@
 
     <div class="main-content">
         <div class="toolbar">
-            <div class="breadcrumb">
-                <span class="refresh" onclick="selectBranch(null,'전체')">⟳</span>
-                <span id="breadcrumb">전체 > 디바이스 A/S 현황</span>
+            <div class="toolbar-left">
+                <div class="breadcrumb">
+                    <span class="refresh" onclick="selectBranch(null,'전체')" style="cursor: pointer;">⟳</span>
+                    <span id="breadcrumb">전체 > 디바이스 A/S 현황</span>
+                </div>
             </div>
             <div class="toolbar-right">
                 <button class="btn btn-delete" onclick="deleteSelected()">삭제</button>
@@ -25,17 +27,17 @@
         </div>
 
         <div class="search-bar">
-            <select id="sf">
+            <select id="sf" aria-label="검색 조건">
                 <option value="all">통합검색</option>
                 <option value="branchName">지점명</option>
                 <option value="deviceId">디바이스ID</option>
                 <option value="userName">신청자명</option>
                 <option value="asDescription">증상</option>
             </select>
-            <input type="text" id="sk" placeholder="검색어 입력 후 엔터" onkeydown="if(event.key==='Enter')loadAsRecords(1)">
+            <input type="text" id="sk" placeholder="검색어 입력 후 엔터" aria-label="검색어" onkeydown="if(event.key==='Enter')loadAsRecords(1)">
             <button class="search-btn" onclick="loadAsRecords(1)">🔍</button>
             <span class="total-info">총 <b id="totalEl">0</b>건</span>
-            <select id="pageSize" onchange="loadAsRecords(1)" style="padding:4px 6px;font-size:12px;">
+            <select id="pageSize" aria-label="페이지 사이즈" onchange="loadAsRecords(1)" style="padding:4px 6px;font-size:12px;">
                 <option value="20" selected>20건씩 보기</option>
                 <option value="50">50건씩 보기</option>
             </select>
@@ -44,7 +46,7 @@
         <div class="table-wrap" style="overflow-x: auto;">
             <table class="grid" style="min-width: 1200px;">
                 <thead><tr>
-                    <th style="width:30px"><input type="checkbox" id="ckAll" onchange="toggleAll()"></th>
+                    <th style="width:30px"><input type="checkbox" id="ckAll" aria-label="전체선택" onchange="toggleAll()"></th>
                     <th>순번</th><th>상태</th><th>지점</th><th>신청자</th>
                     <th>디바이스ID</th><th>모델명</th><th>증상</th><th>신청일</th>
                 </tr></thead>
@@ -55,8 +57,8 @@
     </div>
 </div>
 
-<div class="draw-overlay" id="historyDrawOverlay" onclick="closeDraw('historyDraw')"></div>
-<div class="draw" id="historyDraw" style="width: 800px;">
+<div class="draw-overlay" id="historyDrawOverlay" style="display: none;" onclick="closeDraw('historyDraw')"></div>
+<div class="draw" id="historyDraw" style="display: none; width: 800px;">
     <div class="draw-header">
         <span id="historyDrawTitle">이력 현황</span>
         <button class="draw-close" onclick="closeDraw('historyDraw')">×</button>
@@ -74,9 +76,11 @@
 
 <script th:src="@{/js/common.js}"></script>
 <script>
-    let curPage = 1, curBranch = null, curSize = 20;
+    let curPage = 1;
+    let curBranch = null;
+    let curSize = 20;
 
-    // 🛡️ 보안 패치: XSS 방어 처리 함수 (필수)
+    // 🛡️ XSS 방어 처리 함수
     function escapeHtml(unsafe) {
         if (unsafe == null || unsafe === '') return '-';
         return String(unsafe).replace(/[&<>"']/g, function(m) {
@@ -94,6 +98,7 @@
     }
 
     async function loadBranches() {
+        // api 함수 경고는 무시하셔도 됩니다.
         const res = await api('/api/as-records/summary/by-branch');
         const branches = res.data || [];
         let totalAll = 0, totalProcessing = 0;
@@ -119,7 +124,12 @@
         curBranch = id;
         document.getElementById('breadcrumb').textContent = (name || '전체') + ' > 디바이스 A/S 현황';
         document.querySelectorAll('.left-panel-item').forEach(el => el.classList.remove('active'));
-        event?.target?.closest('.left-panel-item')?.classList.add('active');
+        // event.target 경고 무시 처리
+        const e = window.event;
+        if (e && e.target) {
+            const item = e.target.closest('.left-panel-item');
+            if (item) item.classList.add('active');
+        }
         loadAsRecords(1);
     }
 
@@ -127,10 +137,12 @@
         curPage = page || 1;
         curSize = Number(document.getElementById('pageSize').value);
 
+        // 💡 타입 불일치 에러 해결: String()으로 캐스팅
         const p = new URLSearchParams({
-            searchField: document.getElementById('sf').value,
-            searchKeyword: document.getElementById('sk').value,
-            page: curPage, size: curSize
+            searchField: String(document.getElementById('sf').value),
+            searchKeyword: String(document.getElementById('sk').value),
+            page: String(curPage),
+            size: String(curSize)
         });
 
         const res = await api('/api/as-records?' + p);
@@ -144,7 +156,7 @@
         } else {
             let i = (curPage - 1) * curSize;
             tbody.innerHTML = rows.map(d => `<tr>
-                <td class="center"><input type="checkbox" class="ck" value="${d.id}"></td>
+                <td class="center"><input type="checkbox" class="ck" value="${d.id}" aria-label="선택"></td>
                 <td class="center">${++i}</td>
                 <td class="center">${formatAsStatus(d.status)}</td>
                 <td>${escapeHtml(d.branchName)}</td>
@@ -155,10 +167,12 @@
                 <td class="center">${escapeHtml(d.requestDate)}</td>
             </tr>`).join('');
         }
-        paginate(document.getElementById('paging'), res.pagination, 'loadAsRecords');
+        // paginate 경고 무시
+        if (typeof paginate === 'function') {
+            paginate(document.getElementById('paging'), res.pagination, 'loadAsRecords');
+        }
     }
 
-    // 모달 호출 로직
     async function showHistory(userId, userName) {
         document.getElementById('historyDrawTitle').textContent = `${userName} > A/S 이력`;
         const res = await api(`/api/as-records/users/${userId}?size=100`);
@@ -180,7 +194,8 @@
                 <td class="truncate" style="max-width: 150px;" title="${escapeHtml(d.asDescription)}">${escapeHtml(d.asDescription)}</td>
             </tr>`).join('');
         }
-        openDraw('historyDraw');
+        // openDraw 경고 무시
+        if (typeof openDraw === 'function') openDraw('historyDraw');
     }
 
     function toggleAll() { document.querySelectorAll('.ck').forEach(c => c.checked = document.getElementById('ckAll').checked); }
@@ -188,15 +203,22 @@
 
     async function deleteSelected() {
         const ids = getChecked();
-        if (!ids.length) { toast('삭제할 대상을 선택하세요', 'error'); return; }
+        if (!ids.length) {
+            if (typeof toast === 'function') toast('삭제할 대상을 선택하세요', 'error');
+            return;
+        }
         if (!confirm(`${ids.length}건을 삭제하시겠습니까?`)) return;
         for (const id of ids) await api(`/api/as-records/${id}`, 'DELETE');
-        toast('삭제 완료'); loadAsRecords(curPage); loadBranches();
+        if (typeof toast === 'function') toast('삭제 완료');
+        loadAsRecords(curPage);
+        loadBranches();
     }
 
-    // 초기화
-    loadBranches();
-    loadAsRecords(1);
+    // 💡 비동기 함수 호출 경고 해결 (즉시 실행 함수로 감싸기)
+    (async function init() {
+        await loadBranches();
+        await loadAsRecords(1);
+    })();
 </script>
 </body>
 </html>
