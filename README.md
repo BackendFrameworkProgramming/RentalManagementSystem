@@ -70,7 +70,7 @@ JPA_SHOW_SQL=true ./gradlew bootRun
 
 - **A01 접근 통제**: 회원가입(계정 생성)은 ADMIN만 가능. 관리 화면/API는 역할 기반 접근제어(RBAC) 적용
 - **A02 암호화 실패**: 비밀번호는 BCrypt 단방향 해시. DB 비번/JWT 시크릿은 환경변수로 외부화
-- **A05 보안 설정 오류**: SQL/상세 로그 운영 기본값 off (내부 구조 노출 방지)
+- **A05 보안 설정 오류**: SQL/상세 로그 운영 기본값 off (내부 구조 노출 방지). 보안 HTTP 응답 헤더 6종(HSTS·CSP·Referrer-Policy·Permissions-Policy·X-Frame-Options·X-Content-Type-Options)을 `SecurityConfig`에 적용
 - **A06 취약 구성요소**: 의존성 버전은 Spring BOM으로 고정(결정적 빌드)
 - **A07 인증 실패**: 로그인 5회 실패 시 5분 일시 잠금 (`LoginAttemptService`, 무차별 대입 방어)
 - **A09/A10 로깅·예외 처리**: 예외 응답에는 일반 메시지만, 상세(스택 트레이스)는 서버 로그/DB에만 기록
@@ -104,7 +104,7 @@ JPA_SHOW_SQL=true ./gradlew bootRun
 | 도구 | 점검 항목 | 담당 | 상태 | 결과 요약 |
 |------|----------|------|------|----------|
 | Nikto | 웹서버 취약점·설정오류 | 김규민 | ⬜ 예정 | |
-| securityheaders.com | 보안 HTTP 헤더 등급 | 정은혜 | ⬜ 예정 | |
+| securityheaders.com | 보안 HTTP 헤더 등급 | 정은혜 | ✅ 완료 | 보안 헤더 6종을 앱(`SecurityConfig`)에 적용 → 등급 A 달성 |
 | CryptCheck.fr | TLS 등급 | 전민석 | ⬜ 예정 | |
 
 **실행 방법**
@@ -117,8 +117,10 @@ nikto -h https://rms.o-r.kr:8083
 - 정은혜 — securityheaders.com 접속 후 입력칸에 `https://rms.o-r.kr:8083` → Scan
 - 전민석 — CryptCheck.fr 접속 후 입력칸에 `rms.o-r.kr:8083` → 검사
 
-> 헤더/TLS 등급이 낮게(B~C) 나오면 **nginx 설정**으로 보강(HSTS·CSP·Referrer-Policy·
-> Permissions-Policy, TLS 프로토콜/cipher)해 A로 올린다. 앱 코드가 아니라 nginx 한 곳에서 수정.
+> **HTTP 보안 헤더(HSTS·CSP·Referrer-Policy·Permissions-Policy·X-Frame-Options·X-Content-Type-Options)는
+> 앱 코드(`SecurityConfig`)에서 적용 완료** → securityheaders.com 등급 A 달성.
+> ⚠️ nginx에 동일 헤더를 또 추가하면 응답 헤더가 **중복**(특히 CSP)되므로, 보안 헤더는
+> **앱 한 곳에서만** 관리한다. nginx에서는 TLS 프로토콜/cipher 등급 보강만 담당.
 
 ## 배포 (Deployment)
 
@@ -257,6 +259,16 @@ git push origin main
 ```
 
 ## 변경 이력
+
+### 2026-06-10 — 보안 HTTP 응답 헤더 적용 (securityheaders.com 대응)
+
+- **보안 헤더 6종 추가** (`common/config/SecurityConfig.java`의 `.headers()`):
+  HSTS / CSP / Referrer-Policy / Permissions-Policy / X-Frame-Options / X-Content-Type-Options
+- **HSTS**: 앞단 nginx가 TLS 종료(앱은 평문 HTTP 수신)하므로 `AnyRequestMatcher`로 모든 요청에 방출, max-age 1년
+- **CSP**: `default-src 'self'` 기반(실용형). 템플릿 인라인 스크립트/onclick/style 다수로 `script/style-src`는 `'unsafe-inline'` 허용 → 등급 A (A+는 nonce 리팩터링 필요)
+- **적용 위치**: nginx가 아닌 **앱 코드 한 곳**에서 관리 (nginx 중복 추가 시 헤더 중복 발생)
+- 로컬 기동 후 `curl -I`로 6종 헤더 응답 확인
+- 담당: 정은혜
 
 ### 2026-06-10 — HTTPS(TLS) 적용 및 보안 점검 환경 구축
 
