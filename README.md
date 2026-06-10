@@ -105,7 +105,7 @@ JPA_SHOW_SQL=true ./gradlew bootRun
 |------|----------|------|------|----------|
 | Nikto | 웹서버 취약점·설정오류 | 김규민 | ⬜ 예정 | |
 | securityheaders.com | 보안 HTTP 헤더 등급 | 정은혜 | ✅ 완료 | 보안 헤더 6종을 앱(`SecurityConfig`)에 적용 → 등급 A 달성 |
-| CryptCheck.fr | TLS 등급 | 전민석 | ⬜ 예정 | |
+| CryptCheck.fr | TLS 등급 | 전민석 | ✅ 완료 | nginx에 TLS 1.3 + AEAD cipher 적용, SHA1/CBC 제거 → 등급 E에서 A+ 달성 |
 
 **실행 방법**
 
