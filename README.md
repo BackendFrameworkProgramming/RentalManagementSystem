@@ -88,9 +88,37 @@ JPA_SHOW_SQL=true ./gradlew bootRun
       취약 라이브러리 점검. (Gradle 플러그인 직접 적용은 의존성 충돌로 보류)
 - [ ] **배포 전 보안 점검 절차화**: 런칭 전 보안 점검 툴 1회 실행 + AI 코드 검증을 거쳐 배포하는
       절차를 팀 규칙으로 정착. (교수님 강조 사항)
-      → HTTPS 적용 완료 후 점검 도구 선정: **testssl.sh / Nikto**(서버 CLI),
+      → HTTPS 적용 완료 후 점검 도구 선정: **Nikto**(서버 CLI),
       **securityheaders.com / CryptCheck**(웹). `:8083` 비표준 포트라 SSL Labs·Mozilla
       Observatory(443 전용)는 사용 불가.
+
+## 보안 점검 (배포 전 스캔)
+
+배포 전 1회 보안 점검 — 교수님 강조 사항. 점검 대상: **https://rms.o-r.kr:8083**
+
+> `:8083` 비표준 포트라 SSL Labs·Mozilla Observatory(443 전용)는 사용 불가 → 아래 3종으로 대체.
+
+각자 본인 도구를 실행하고 **표에서 본인 행만** 갱신(상태 `⬜ 예정` → `✅ 완료`, 결과 요약 기입)한 뒤
+커밋한다. 결과 화면 캡처는 제출물/노션에 첨부.
+
+| 도구 | 점검 항목 | 담당 | 상태 | 결과 요약 |
+|------|----------|------|------|----------|
+| Nikto | 웹서버 취약점·설정오류 | 김규민 | ⬜ 예정 | |
+| securityheaders.com | 보안 HTTP 헤더 등급 | 정은혜 | ⬜ 예정 | |
+| CryptCheck.fr | TLS 등급 | 전민석 | ⬜ 예정 | |
+
+**실행 방법**
+
+```bash
+# 김규민 — Nikto (서버 SSH)
+sudo apt install -y nikto
+nikto -h https://rms.o-r.kr:8083
+```
+- 정은혜 — securityheaders.com 접속 후 입력칸에 `https://rms.o-r.kr:8083` → Scan
+- 전민석 — CryptCheck.fr 접속 후 입력칸에 `rms.o-r.kr:8083` → 검사
+
+> 헤더/TLS 등급이 낮게(B~C) 나오면 **nginx 설정**으로 보강(HSTS·CSP·Referrer-Policy·
+> Permissions-Policy, TLS 프로토콜/cipher)해 A로 올린다. 앱 코드가 아니라 nginx 한 곳에서 수정.
 
 ## 배포 (Deployment)
 
