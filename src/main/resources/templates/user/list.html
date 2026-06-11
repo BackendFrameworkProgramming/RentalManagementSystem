@@ -8,7 +8,7 @@
         <div class="toolbar">
             <div class="toolbar-left"><div class="breadcrumb">사용자 관리</div></div>
             <div class="toolbar-right">
-                <button class="btn btn-new" onclick="openDraw('userDraw');clearForm()">+ 사용자 등록</button>
+                <button class="btn btn-new" onclick="openCreate()">+ 사용자 등록</button>
             </div>
         </div>
         <div class="search-bar">
@@ -26,19 +26,19 @@
         <div class="pagination-bar" id="paging"></div>
     </div>
 </div>
-<!-- 사용자 등록 Draw -->
+<!-- 사용자 등록/수정 Draw -->
 <div class="draw-overlay" id="userDrawOverlay" onclick="closeDraw('userDraw')"></div>
 <div class="draw" id="userDraw">
-    <div class="draw-header"><span>사용자 등록</span><button class="draw-close" onclick="closeDraw('userDraw')">&times;</button></div>
+    <div class="draw-header"><span id="userDrawTitle">사용자 등록</span><button class="draw-close" onclick="closeDraw('userDraw')">&times;</button></div>
     <div class="draw-body">
         <div class="form-section">
             <div class="form-group"><label>사용자명 *</label><input id="uName"></div>
             <div class="form-group"><label>로그인ID *</label><input id="uLoginId"></div>
-            <div class="form-group"><label>비밀번호 *</label><input type="password" id="uPassword" placeholder="비밀번호 입력"></div>
+            <div class="form-group"><label id="uPwLabel">비밀번호 *</label><input type="password" id="uPassword" placeholder="비밀번호 입력"></div>
             <div class="form-row">
                 <div class="form-group"><label>역할 *</label>
                     <select id="uRole" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px">
-                        <option value="USER">일반 사용자</option>
+                        <option value="STAFF">운영자</option>
                         <option value="ADMIN">관리자</option>
                     </select>
                 </div>
@@ -48,35 +48,89 @@
                 <div class="form-group"><label>이메일</label><input id="uEmail" type="email" placeholder="email@example.com"></div>
             </div>
         </div>
-        <button class="btn btn-save" onclick="createUser()">등록</button>
+        <button class="btn btn-save" id="uSaveBtn" onclick="saveUser()">등록</button>
     </div>
 </div>
 <script th:src="@{/js/common.js}"></script>
 <script>
+let editId = null; // null=등록, 값=수정 대상 id
+
 async function loadUsers(p=1){
     const sf=document.getElementById('sf').value,sk=document.getElementById('sk').value;
     let url=`/api/users?page=${p}&size=20`;
     if(sk)url+=`&searchField=${sf}&searchKeyword=${sk}`;
     const r=await api(url);let i=(p-1)*20;
     document.getElementById('totalEl').textContent=r.pagination?.totalElements||0;
-    document.getElementById('tbody').innerHTML=(r.data||[]).map(u=>`<tr>
+    document.getElementById('tbody').innerHTML=(r.data||[]).map(u=>{
+        const isAdmin=u.role==='ADMIN';
+        const roleLabel=isAdmin?'관리자':'운영자';
+        const badgeClass=isAdmin?'badge-AS접수':'badge-임대대기';
+        const u2=JSON.stringify(u).replace(/"/g,'&quot;');
+        return `<tr>
         <td class="center">${++i}</td>
         <td>${u.userName}</td><td>${u.userLoginId||'-'}</td>
-        <td class="center"><span class="badge ${u.role==='ADMIN'?'badge-AS접수':'badge-임대대기'}">${u.role==='ADMIN'?'관리자':'일반'}</span></td>
+        <td class="center"><span class="badge ${badgeClass}">${roleLabel}</span></td>
         <td>${u.contact||'-'}</td><td>${u.email||'-'}</td>
-        <td class="center"><button class="btn btn-sm btn-delete" onclick="deleteUser(${u.id})">삭제</button></td>
-    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:30px;color:#aaa">사용자 없음</td></tr>';
+        <td class="center">
+            <button class="btn btn-sm" onclick="openEdit(${u2})">수정</button>
+            <button class="btn btn-sm btn-delete" onclick="deleteUser(${u.id})">삭제</button>
+        </td>
+    </tr>`;}).join('')||'<tr><td colspan="7" style="text-align:center;padding:30px;color:#aaa">사용자 없음</td></tr>';
     paginate(document.getElementById('paging'),r.pagination,'loadUsers');
 }
-function clearForm(){['uName','uLoginId','uPassword','uContact','uEmail'].forEach(id=>document.getElementById(id).value='');document.getElementById('uRole').value='USER';}
-async function createUser(){
-    const body={userName:document.getElementById('uName').value,userLoginId:document.getElementById('uLoginId').value,
-        password:document.getElementById('uPassword').value,role:document.getElementById('uRole').value,
-        contact:document.getElementById('uContact').value,email:document.getElementById('uEmail').value};
-    if(!body.userName||!body.userLoginId||!body.password){toast('사용자명, 로그인ID, 비밀번호는 필수입니다.','error');return;}
-    const r=await api('/api/users','POST',body);
-    if(r.success){toast('사용자 등록 완료');closeDraw('userDraw');loadUsers();}else toast(r.error?.message,'error');
+
+function openCreate(){
+    editId=null;
+    document.getElementById('userDrawTitle').textContent='사용자 등록';
+    document.getElementById('uPwLabel').textContent='비밀번호 *';
+    document.getElementById('uPassword').placeholder='비밀번호 입력';
+    document.getElementById('uSaveBtn').textContent='등록';
+    document.getElementById('uLoginId').disabled=false;
+    ['uName','uLoginId','uPassword','uContact','uEmail'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('uRole').value='STAFF';
+    openDraw('userDraw');
 }
+
+function openEdit(u){
+    editId=u.id;
+    document.getElementById('userDrawTitle').textContent='사용자 수정';
+    document.getElementById('uPwLabel').textContent='비밀번호 (변경 시에만 입력)';
+    document.getElementById('uPassword').placeholder='비워두면 기존 비밀번호 유지';
+    document.getElementById('uSaveBtn').textContent='저장';
+    document.getElementById('uName').value=u.userName||'';
+    document.getElementById('uLoginId').value=u.userLoginId||'';
+    document.getElementById('uLoginId').disabled=true; // 로그인ID는 수정 불가
+    document.getElementById('uPassword').value='';
+    document.getElementById('uRole').value=(u.role==='ADMIN')?'ADMIN':'STAFF';
+    document.getElementById('uContact').value=u.contact||'';
+    document.getElementById('uEmail').value=u.email||'';
+    openDraw('userDraw');
+}
+
+async function saveUser(){
+    const userName=document.getElementById('uName').value;
+    const password=document.getElementById('uPassword').value;
+    const role=document.getElementById('uRole').value;
+    const contact=document.getElementById('uContact').value;
+    const email=document.getElementById('uEmail').value;
+
+    if(editId===null){
+        // 등록
+        const loginId=document.getElementById('uLoginId').value;
+        if(!userName||!loginId||!password){toast('사용자명, 로그인ID, 비밀번호는 필수입니다.','error');return;}
+        const body={userName,userLoginId:loginId,password,role,contact,email};
+        const r=await api('/api/users','POST',body);
+        if(r.success){toast('사용자 등록 완료');closeDraw('userDraw');loadUsers();}else toast(r.error?.message,'error');
+    }else{
+        // 수정 (비번은 입력했을 때만 전송)
+        if(!userName){toast('사용자명은 필수입니다.','error');return;}
+        const body={userName,role,contact,email};
+        if(password)body.password=password;
+        const r=await api(`/api/users/${editId}`,'PATCH',body);
+        if(r.success){toast('수정 완료');closeDraw('userDraw');loadUsers();}else toast(r.error?.message,'error');
+    }
+}
+
 async function deleteUser(id){if(!confirm('이 사용자를 삭제하시겠습니까?'))return;const r=await api(`/api/users/${id}`,'DELETE');if(r.success){toast('삭제 완료');loadUsers();}else toast(r.error?.message,'error');}
 loadUsers();
 </script>

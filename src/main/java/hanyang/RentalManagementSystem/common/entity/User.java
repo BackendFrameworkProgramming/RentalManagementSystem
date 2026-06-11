@@ -16,10 +16,11 @@ public class User extends BaseEntity {
     @Column(length = 255)
     private String password;
     // 교수님 피드백 #5: 역할을 문자열 대신 Enum으로 (EnumType.STRING → 기존 컬럼/값 유지)
+    // 비관리자 기본값 = STAFF(운영자). 관리자만 ADMIN. (USER=착용자 로그인은 확장용)
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     @Builder.Default
-    private Role role = Role.USER;
+    private Role role = Role.STAFF;
     @Column(length = 20)
     private String contact;
     @Column(length = 100)

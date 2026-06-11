@@ -45,7 +45,7 @@ public class AuthService {
                 .userName(req.getUserName())
                 .contact(req.getContact() != null ? req.getContact() : "")
                 .email(req.getEmail() != null ? req.getEmail() : "")
-                .role(Role.USER)
+                .role(Role.STAFF)
                 .build();
         userRepository.save(user);
 
@@ -112,14 +112,14 @@ public class AuthService {
                 .id(user.getId())
                 .userName(user.getUserName())
                 .userLoginId(user.getUserLoginId())
-                .role((user.getRole() == null ? Role.USER : user.getRole()).name())
+                .role((user.getRole() == null ? Role.STAFF : user.getRole()).name())
                 .email(user.getEmail())
                 .contact(user.getContact())
                 .build();
     }
 
     private AuthTokenResponse generateTokens(User user) {
-        Role role = user.getRole() == null ? Role.USER : user.getRole();
+        Role role = user.getRole() == null ? Role.STAFF : user.getRole();
         // 지점 관리자라면 branchId를 토큰에 담아 데이터 스코핑에 활용
         Long branchId = user.getBranch() != null ? user.getBranch().getId() : null;
 
