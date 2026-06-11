@@ -11,6 +11,7 @@ import hanyang.RentalManagementSystem.common.repository.BiometricDataRepository;
 import hanyang.RentalManagementSystem.common.repository.DeviceRepository;
 import hanyang.RentalManagementSystem.common.repository.EmergencyRecordRepository;
 import hanyang.RentalManagementSystem.common.repository.RentalRepository;
+import hanyang.RentalManagementSystem.common.enums.RentalStatus;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,9 +84,8 @@ public class DrValueIntegration {
 
     public void saveReport(ReportMessage r) {
         // deviceId(문자열)로 Device 엔티티 조회
-        Optional<Device> deviceOpt = deviceRepository.findAll().stream()
-                .filter(d -> d.getDeviceId().equals(r.deviceId()) && !d.getIsDeleted())
-                .findFirst();
+        // 교수님 피드백 #2: 전체 findAll 후 메모리 필터 대신 쿼리로 직접 조회
+        Optional<Device> deviceOpt = deviceRepository.findByDeviceIdAndIsDeletedFalse(r.deviceId());
 
         if (deviceOpt.isEmpty()) {
             log.debug("REPORT 저장 스킵 - 미등록 디바이스: {}", r.deviceId());
@@ -107,7 +107,7 @@ public class DrValueIntegration {
             bio.setDevice(device);
             bio.setIsDeleted(false);
             // 현재 진행 중 임대가 있으면 rental_id 자동 세팅
-            rentalRepository.findByDeviceIdAndStatusAndIsDeletedFalse(device.getId(), "RENTING")
+            rentalRepository.findByDeviceIdAndStatusAndIsDeletedFalse(device.getId(), RentalStatus.RENTING)
                     .ifPresent(bio::setRental);
         }
 
@@ -124,9 +124,8 @@ public class DrValueIntegration {
 
     public void saveEmergency(EmergencyMessage e) {
         // deviceId(문자열)로 Device 엔티티 조회
-        Optional<Device> deviceOpt = deviceRepository.findAll().stream()
-                .filter(d -> d.getDeviceId().equals(e.deviceId()) && !d.getIsDeleted())
-                .findFirst();
+        // 교수님 피드백 #2: 전체 findAll 후 메모리 필터 대신 쿼리로 직접 조회
+        Optional<Device> deviceOpt = deviceRepository.findByDeviceIdAndIsDeletedFalse(e.deviceId());
 
         if (deviceOpt.isEmpty()) {
             log.debug("EMERGENCY 저장 스킵 - 미등록 디바이스: {}", e.deviceId());
@@ -153,7 +152,7 @@ public class DrValueIntegration {
         record.setActionContent(String.format("위치: %.4f, %.4f", e.gpsLatitude(), e.gpsLongitude()));
 
         // 현재 진행 중 임대가 있으면 rental_id 세팅
-        rentalRepository.findByDeviceIdAndStatusAndIsDeletedFalse(device.getId(), "RENTING")
+        rentalRepository.findByDeviceIdAndStatusAndIsDeletedFalse(device.getId(), RentalStatus.RENTING)
                 .ifPresent(record::setRental);
 
         emergencyRecordRepository.save(record);

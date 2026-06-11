@@ -1,11 +1,15 @@
 package hanyang.RentalManagementSystem.taewoong.controller;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.DesignHistoryResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.DesignHistoryUpsertRequest;
 import hanyang.RentalManagementSystem.taewoong.service.DesignHistoryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/design-history")
@@ -14,23 +18,23 @@ public class DesignHistoryController {
     private final DesignHistoryService service;
 
     @GetMapping
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> list() {
+    public ResponseEntity<CommonResponse<List<DesignHistoryResponse>>> list() {
         return ResponseEntity.ok(service.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> detail(@PathVariable Long id) {
+    public ResponseEntity<CommonResponse<DesignHistoryResponse>> detail(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
     }
 
     @PostMapping
-    public ResponseEntity<CommonResponse<Map<String, Object>>> create(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(body));
+    public ResponseEntity<CommonResponse<DesignHistoryResponse>> create(@RequestBody DesignHistoryUpsertRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(service.update(id, body));
+    public ResponseEntity<CommonResponse<DesignHistoryResponse>> update(@PathVariable Long id, @RequestBody DesignHistoryUpsertRequest request) {
+        return ResponseEntity.ok(service.update(id, request));
     }
 
     @DeleteMapping("/{id}")

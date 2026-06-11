@@ -1,9 +1,24 @@
 package hanyang.RentalManagementSystem.taewoong.service;
 
-import hanyang.RentalManagementSystem.common.dto.*;
-import hanyang.RentalManagementSystem.common.entity.*;
+import hanyang.RentalManagementSystem.common.dto.CommonResponse;
+import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
+import hanyang.RentalManagementSystem.common.dto.ErrorInfo;
+import hanyang.RentalManagementSystem.common.dto.Pagination;
+import hanyang.RentalManagementSystem.common.entity.Branch;
+import hanyang.RentalManagementSystem.common.entity.Device;
+import hanyang.RentalManagementSystem.common.entity.ModelVersion;
+import hanyang.RentalManagementSystem.common.enums.DeviceStatus;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
-import hanyang.RentalManagementSystem.common.repository.*;
+import hanyang.RentalManagementSystem.common.repository.AsRecordRepository;
+import hanyang.RentalManagementSystem.common.repository.BranchRepository;
+import hanyang.RentalManagementSystem.common.repository.DeviceRepository;
+import hanyang.RentalManagementSystem.common.repository.ModelVersionRepository;
+import hanyang.RentalManagementSystem.common.repository.RentalRepository;
+import hanyang.RentalManagementSystem.taewoong.dto.DeviceAsHistoryResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.DeviceCreateRequest;
+import hanyang.RentalManagementSystem.taewoong.dto.DeviceResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.DeviceSummaryResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.DeviceUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -11,8 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,90 +41,78 @@ public class DeviceService {
     private final RentalRepository rentalRepository;
     private final AsRecordRepository asRecordRepository;
 
-    // 1-1 목록 조회
-    public CommonResponse<List<Map<String, Object>>> findAll(CommonSearchRequest request) {
-        Page<Device> page = deviceRepository.findAll(request.toPageable());
-        List<Map<String, Object>> data = page.getContent().stream()
-                .filter(d -> request.getIncludeDeleted() || !d.getIsDeleted())
-                .map(this::toMap)
-                .collect(Collectors.toList());
+    // 1-1 목록 (교수님 #1: 페이징 전에 쿼리 단계에서 isDeleted 필터 / @EntityGraph N+1 방어 / #4: DTO)
+    public CommonResponse<List<DeviceResponse>> findAll(CommonSearchRequest request) {
+        Page<Device> page = Boolean.TRUE.equals(request.getIncludeDeleted())
+                ? deviceRepository.findAll(request.toPageable())
+                : deviceRepository.findAllByIsDeletedFalse(request.toPageable());
+        List<DeviceResponse> data = page.getContent().stream().map(DeviceResponse::from).toList();
         return CommonResponse.success(data, Pagination.of(page));
     }
 
     // 1-2 등록
     @Transactional
-    public CommonResponse<Map<String, Object>> create(Map<String, Object> body) {
-        String deviceId = (String) body.get("deviceId");
-        Long modelVersionId = ((Number) body.get("modelVersionId")).longValue();
-
-        ModelVersion mv = modelVersionRepository.findById(modelVersionId)
+    public CommonResponse<DeviceResponse> create(DeviceCreateRequest req) {
+        if (req.getDeviceId() == null || req.getDeviceId().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "deviceId는 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (req.getModelVersionId() == null) {
+            throw new CustomException("INVALID_REQUEST", "modelVersionId는 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        ModelVersion mv = modelVersionRepository.findById(req.getModelVersionId())
                 .orElseThrow(() -> new CustomException("MODEL_VERSION_NOT_FOUND", "모델버전을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
         Device device = Device.builder()
-                .deviceId(deviceId)
+                .deviceId(req.getDeviceId())
                 .modelVersion(mv)
-                .status("INCOMING")
-                .battery((String) body.get("battery"))
-                .remark((String) body.get("remark"))
+                .status(DeviceStatus.INCOMING)
+                .battery(req.getBattery())
+                .remark(req.getRemark())
                 .incomingDate(LocalDate.now())
                 .isDeleted(false)
                 .build();
 
-        if (body.get("branchId") != null) {
-            Long branchId = ((Number) body.get("branchId")).longValue();
-            Branch branch = branchRepository.findById(branchId)
+        if (req.getBranchId() != null) {
+            Branch branch = branchRepository.findById(req.getBranchId())
                     .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
             device.setBranch(branch);
-            device.setStatus("RENTAL_READY");
+            device.setStatus(DeviceStatus.RENTAL_READY);
             device.setBranchSendDate(LocalDate.now());
         }
-
         deviceRepository.save(device);
-        return CommonResponse.created(toMap(device));
+        return CommonResponse.created(DeviceResponse.from(device));
     }
 
     // 1-3 상세
-    public CommonResponse<Map<String, Object>> findById(Long id) {
-        Device device = getDevice(id);
-        return CommonResponse.success(toMap(device));
+    public CommonResponse<DeviceResponse> findById(Long id) {
+        return CommonResponse.success(DeviceResponse.from(getDevice(id)));
     }
 
     // 1-4 수정
     @Transactional
-    public CommonResponse<Map<String, Object>> update(Long id, Map<String, Object> body) {
+    public CommonResponse<DeviceResponse> update(Long id, DeviceUpdateRequest req) {
         Device device = getDevice(id);
-
-        if (body.containsKey("status")) {
-            String newStatus = (String) body.get("status");
-            validateStatusTransition(device.getStatus(), newStatus);
-            device.setStatus(newStatus);
+        if (req.getStatus() != null) {
+            DeviceStatus next = parseStatus(req.getStatus());
+            validateStatusTransition(device.getStatus(), next);
+            device.setStatus(next);
         }
-        if (body.containsKey("battery")) device.setBattery((String) body.get("battery"));
-        if (body.containsKey("remark")) device.setRemark((String) body.get("remark"));
-        if (body.containsKey("branchId")) {
-            if (body.get("branchId") != null) {
-                Long branchId = ((Number) body.get("branchId")).longValue();
-                Branch branch = branchRepository.findById(branchId)
-                        .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-                device.setBranch(branch);
-                device.setBranchSendDate(LocalDate.now());
-            } else {
-                device.setBranch(null);
-                device.setBranchSendDate(null);
-            }
+        if (req.getBattery() != null) device.setBattery(req.getBattery());
+        if (req.getRemark() != null) device.setRemark(req.getRemark());
+        if (req.getBranchId() != null) {
+            Branch branch = branchRepository.findById(req.getBranchId())
+                    .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+            device.setBranch(branch);
+            device.setBranchSendDate(LocalDate.now());
         }
-
-        return CommonResponse.success(toMap(device));
+        return CommonResponse.success(DeviceResponse.from(device));
     }
 
-    // 1-5 삭제
+    // 1-5 삭제 (교수님 #2: 전체 렌탈 findAll 대신 exists 쿼리로 진행중 임대 확인)
     @Transactional
     public void delete(Long id) {
         Device device = getDevice(id);
-        boolean hasActiveRental = rentalRepository.findAll().stream()
-                .anyMatch(r -> r.getDevice() != null && r.getDevice().getId().equals(id)
-                        && !r.getIsDeleted() && r.getReturnDate() == null);
-        if (hasActiveRental) {
+        if (rentalRepository.existsByDeviceIdAndReturnDateIsNullAndIsDeletedFalse(id)) {
             throw new CustomException("DEVICE_HAS_ACTIVE_RENTAL", "진행 중인 임대가 있어 삭제할 수 없습니다.");
         }
         device.setIsDeleted(true);
@@ -116,70 +120,35 @@ public class DeviceService {
 
     // 1-5-2 상태 변경
     @Transactional
-    public CommonResponse<Map<String, Object>> updateStatus(Long id, String newStatus) {
-        Device d = deviceRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        validateStatusTransition(d.getStatus(), newStatus);
-        d.setStatus(newStatus);
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", d.getId());
-        m.put("deviceId", d.getDeviceId());
-        m.put("status", d.getStatus());
-        return CommonResponse.success(m);
+    public CommonResponse<DeviceResponse> updateStatus(Long id, String status) {
+        Device d = getDevice(id);
+        DeviceStatus next = parseStatus(status);
+        validateStatusTransition(d.getStatus(), next);
+        d.setStatus(next);
+        return CommonResponse.success(DeviceResponse.from(d));
     }
 
-    // 1-6 AS 이력
-    public CommonResponse<List<Map<String, Object>>> findAsRecordsByDeviceId(Long deviceId, CommonSearchRequest request) {
-        List<AsRecord> records = asRecordRepository.findAllByDeviceIdAndIsDeletedFalse(deviceId);
-        List<Map<String, Object>> data = records.stream()
-                .map(r -> {
-                    Map<String, Object> map = new LinkedHashMap<>();
-                    map.put("id", r.getId());
-                    map.put("status", r.getStatus());
-                    map.put("receiptDate", r.getReceiptDate());
-                    map.put("receiptBy", r.getReceiptBy());
-                    map.put("receiptContent", r.getReceiptContent());
-                    map.put("confirmBy", r.getConfirmBy());
-                    map.put("confirmDate", r.getConfirmDate());
-                    map.put("confirmResult", r.getConfirmResult());
-                    map.put("repairContent", r.getRepairContent());
-                    map.put("completeDate", r.getCompleteDate());
-                    map.put("assignedTo", r.getAssignedTo());
-                    map.put("collectDate", r.getCollectDate());
-                    map.put("resendDate", r.getResendDate());
-                    if (r.getRental() != null && r.getRental().getUser() != null) {
-                        map.put("userName", r.getRental().getUser().getUserName());
-                        map.put("rentalDate", r.getRental().getApplyDate());
-                    } else {
-                        map.put("userName", "-");
-                        map.put("rentalDate", "-");
-                    }
-                    if (r.getVendor() != null) {
-                        map.put("vendorName", r.getVendor().getVendorName());
-                    }
-                    if (r.getAsType() != null) {
-                        map.put("asTypeName", r.getAsType().getTypeName());
-                    }
-                    return map;
-                })
-                .collect(Collectors.toList());
+    // 1-6 AS 이력 (@EntityGraph로 N+1 방어 / DTO)
+    public CommonResponse<List<DeviceAsHistoryResponse>> findAsRecordsByDeviceId(Long deviceId, CommonSearchRequest request) {
+        List<DeviceAsHistoryResponse> data = asRecordRepository.findAllByDeviceIdAndIsDeletedFalse(deviceId)
+                .stream().map(DeviceAsHistoryResponse::from).toList();
         return CommonResponse.success(data);
     }
 
-    // 1-7 지점 연결 (단건)
+    // 1-7 지점 연결(단건)
     @Transactional
-    public CommonResponse<Map<String, Object>> linkBranch(Long deviceId, Long branchId) {
+    public CommonResponse<DeviceResponse> linkBranch(Long deviceId, Long branchId) {
         Device device = getDevice(deviceId);
-        validateStatusTransition(device.getStatus(), "RENTAL_READY");
+        validateStatusTransition(device.getStatus(), DeviceStatus.RENTAL_READY);
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         device.setBranch(branch);
-        device.setStatus("RENTAL_READY");
+        device.setStatus(DeviceStatus.RENTAL_READY);
         device.setBranchSendDate(LocalDate.now());
-        return CommonResponse.success(toMap(device));
+        return CommonResponse.success(DeviceResponse.from(device));
     }
 
-    // 1-8 지점 연결 (다중)
+    // 1-8 지점 연결(다중)
     @Transactional
     public CommonResponse<Map<String, Object>> batchLinkBranch(List<Long> deviceIds, Long branchId) {
         Branch branch = branchRepository.findById(branchId)
@@ -188,140 +157,104 @@ public class DeviceService {
         for (Long did : deviceIds) {
             try {
                 Device d = getDevice(did);
-                validateStatusTransition(d.getStatus(), "RENTAL_READY");
+                validateStatusTransition(d.getStatus(), DeviceStatus.RENTAL_READY);
                 d.setBranch(branch);
-                d.setStatus("RENTAL_READY");
+                d.setStatus(DeviceStatus.RENTAL_READY);
                 d.setBranchSendDate(LocalDate.now());
             } catch (CustomException e) {
                 errors.add(ErrorInfo.BatchErrorDetail.builder().targetId(did).reason(e.getCode()).build());
             }
         }
         if (!errors.isEmpty()) {
-            throw new CustomException("BATCH_PARTIAL_FAILURE",
-                    errors.size() + "건 처리 실패. 전체 롤백됨.");
+            throw new CustomException("BATCH_PARTIAL_FAILURE", errors.size() + "건 처리 실패. 전체 롤백됨.");
         }
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("updatedCount", deviceIds.size());
-        return CommonResponse.success(result);
+        return CommonResponse.success(Map.of("updatedCount", deviceIds.size()));
     }
 
-    // 1-9 지점 해제 (단건)
+    // 1-9 지점 해제(단건)
     @Transactional
     public void unlinkBranch(Long deviceId) {
         Device device = getDevice(deviceId);
-        validateStatusTransition(device.getStatus(), "INCOMING");
+        validateStatusTransition(device.getStatus(), DeviceStatus.INCOMING);
         device.setBranch(null);
-        device.setStatus("INCOMING");
+        device.setStatus(DeviceStatus.INCOMING);
         device.setBranchSendDate(null);
     }
 
-    // 1-10 지점 해제 (다중)
+    // 1-10 지점 해제(다중)
     @Transactional
     public CommonResponse<Map<String, Object>> batchUnlinkBranch(List<Long> deviceIds) {
         List<ErrorInfo.BatchErrorDetail> errors = new ArrayList<>();
         for (Long did : deviceIds) {
             try {
                 Device d = getDevice(did);
-                validateStatusTransition(d.getStatus(), "INCOMING");
+                validateStatusTransition(d.getStatus(), DeviceStatus.INCOMING);
                 d.setBranch(null);
-                d.setStatus("INCOMING");
+                d.setStatus(DeviceStatus.INCOMING);
                 d.setBranchSendDate(null);
             } catch (CustomException e) {
                 errors.add(ErrorInfo.BatchErrorDetail.builder().targetId(did).reason(e.getCode()).build());
             }
         }
         if (!errors.isEmpty()) {
-            throw new CustomException("BATCH_PARTIAL_FAILURE",
-                    errors.size() + "건 처리 실패. 전체 롤백됨.");
+            throw new CustomException("BATCH_PARTIAL_FAILURE", errors.size() + "건 처리 실패. 전체 롤백됨.");
         }
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("updatedCount", deviceIds.size());
-        return CommonResponse.success(result);
+        return CommonResponse.success(Map.of("updatedCount", deviceIds.size()));
     }
 
-    // 1-11 지점별 수량 집계 (출고/교체/폐기 포함)
-    public CommonResponse<Map<String, Object>> summaryByBranch() {
-        List<Device> all = deviceRepository.findAllByIsDeletedFalse();
-
-        // 지점별 집계
-        List<Map<String, Object>> branches = all.stream()
-                .filter(d -> d.getBranch() != null)
-                .collect(Collectors.groupingBy(d -> d.getBranch().getId()))
-                .entrySet().stream()
-                .map(entry -> {
-                    Device sample = entry.getValue().get(0);
-                    Map<String, Object> map = new LinkedHashMap<>();
-                    map.put("branchId", entry.getKey());
-                    map.put("branchName", sample.getBranch().getBranchName());
-                    map.put("count", entry.getValue().size());
-                    return map;
-                })
-                .collect(Collectors.toList());
-
-        // 전체 집계
-        long total = all.size();
-        long unshipped = all.stream().filter(d -> d.getBranch() == null).count();
-        long shipped = all.stream().filter(d -> "RENTING".equals(d.getStatus()) || "RENTAL_READY".equals(d.getStatus())).count();
-        long returned = all.stream().filter(d -> "RETURNED".equals(d.getStatus())).count();
-        long disposed = all.stream().filter(d -> "DISPOSED".equals(d.getStatus())).count();
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("branches", branches);
-        result.put("total", total);
-        result.put("unshipped", unshipped);
-        result.put("shipped", shipped);
-        result.put("returned", returned);
-        result.put("disposed", disposed);
-        return CommonResponse.success(result);
+    // 1-11 집계 (교수님 #3: 전체 엔티티 로드 대신 count/group-by 쿼리)
+    public CommonResponse<DeviceSummaryResponse> summaryByBranch() {
+        List<DeviceSummaryResponse.BranchCount> branches = deviceRepository.countGroupByBranch().stream()
+                .map(row -> DeviceSummaryResponse.BranchCount.builder()
+                        .branchId(((Number) row[0]).longValue())
+                        .branchName((String) row[1])
+                        .count(((Number) row[2]).longValue())
+                        .build())
+                .toList();
+        DeviceSummaryResponse summary = DeviceSummaryResponse.builder()
+                .branches(branches)
+                .total(deviceRepository.countByIsDeletedFalse())
+                .unshipped(deviceRepository.countByBranchIsNullAndIsDeletedFalse())
+                .shipped(deviceRepository.countByStatusInAndIsDeletedFalse(List.of(DeviceStatus.RENTING, DeviceStatus.RENTAL_READY)))
+                .returned(deviceRepository.countByStatusAndIsDeletedFalse(DeviceStatus.RETURNED))
+                .disposed(deviceRepository.countByStatusAndIsDeletedFalse(DeviceStatus.DISPOSED))
+                .build();
+        return CommonResponse.success(summary);
     }
 
-    // 모델버전별 디바이스 수
+    // 모델버전별 디바이스 수 (교수님 #3: count 쿼리)
     public long countByModelVersionId(Long modelVersionId) {
-        return deviceRepository.findAllByModelVersionIdAndIsDeletedFalse(modelVersionId).size();
+        return deviceRepository.countByModelVersionIdAndIsDeletedFalse(modelVersionId);
     }
 
     // === 헬퍼 ===
     private Device getDevice(Long id) {
-        return deviceRepository.findById(id)
+        return deviceRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND",
                         "ID " + id + "에 해당하는 디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
-    private Map<String, Object> toMap(Device d) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", d.getId());
-        map.put("deviceId", d.getDeviceId());
-        map.put("status", d.getStatus());
-        map.put("battery", d.getBattery());
-        map.put("branchId", d.getBranch() != null ? d.getBranch().getId() : null);
-        map.put("branchName", d.getBranch() != null ? d.getBranch().getBranchName() : null);
-        map.put("branchSendDate", d.getBranchSendDate());
-        map.put("modelVersionId", d.getModelVersion().getId());
-        map.put("modelName", d.getModelVersion().getModel().getModelName());
-        map.put("version", d.getModelVersion().getVersion());
-        map.put("incomingDate", d.getIncomingDate());
-        map.put("latestRentalDate", d.getLatestRentalDate());
-        map.put("latestAsDate", d.getLatestAsDate());
-        map.put("remark", d.getRemark());
-        map.put("createdAt", d.getCreatedAt());
-        map.put("updatedAt", d.getUpdatedAt());
-        return map;
+    private DeviceStatus parseStatus(String s) {
+        try {
+            return DeviceStatus.valueOf(s.trim().toUpperCase());
+        } catch (Exception e) {
+            throw new CustomException("INVALID_STATUS", "알 수 없는 상태값: " + s, HttpStatus.BAD_REQUEST);
+        }
     }
 
-    private void validateStatusTransition(String current, String next) {
-        Map<String, List<String>> allowed = Map.of(
-                "INCOMING", List.of("RENTAL_READY"),
-                "RENTAL_READY", List.of("RENTING", "AS_RECEIVED", "INCOMING"),
-                "RENTING", List.of("RENTAL_READY", "AS_RECEIVED"),
-                "AS_RECEIVED", List.of("AS_PROGRESS", "RENTAL_READY", "DISPOSED"),
-                "AS_PROGRESS", List.of("RENTAL_READY", "DISPOSED"),
-                "RETURNED", List.of("INCOMING"),
-                "DISPOSED", List.of()
+    private void validateStatusTransition(DeviceStatus current, DeviceStatus next) {
+        Map<DeviceStatus, List<DeviceStatus>> allowed = Map.of(
+                DeviceStatus.INCOMING, List.of(DeviceStatus.RENTAL_READY),
+                DeviceStatus.RENTAL_READY, List.of(DeviceStatus.RENTING, DeviceStatus.AS_RECEIVED, DeviceStatus.INCOMING),
+                DeviceStatus.RENTING, List.of(DeviceStatus.RENTAL_READY, DeviceStatus.AS_RECEIVED),
+                DeviceStatus.AS_RECEIVED, List.of(DeviceStatus.AS_PROGRESS, DeviceStatus.RENTAL_READY, DeviceStatus.DISPOSED),
+                DeviceStatus.AS_PROGRESS, List.of(DeviceStatus.RENTAL_READY, DeviceStatus.DISPOSED),
+                DeviceStatus.RETURNED, List.of(DeviceStatus.INCOMING),
+                DeviceStatus.DISPOSED, List.of()
         );
-        List<String> validNext = allowed.getOrDefault(current, List.of());
+        List<DeviceStatus> validNext = allowed.getOrDefault(current, List.of());
         if (!validNext.contains(next)) {
-            throw new CustomException("INVALID_STATUS_TRANSITION",
-                    current + " → " + next + " 전이는 허용되지 않습니다.");
+            throw new CustomException("INVALID_STATUS_TRANSITION", current + " → " + next + " 전이는 허용되지 않습니다.");
         }
     }
 }

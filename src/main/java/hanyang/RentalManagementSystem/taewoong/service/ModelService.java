@@ -1,22 +1,39 @@
 package hanyang.RentalManagementSystem.taewoong.service;
 
-import hanyang.RentalManagementSystem.common.dto.*;
-import hanyang.RentalManagementSystem.common.entity.*;
+import hanyang.RentalManagementSystem.common.dto.CommonResponse;
+import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
+import hanyang.RentalManagementSystem.common.dto.Pagination;
+import hanyang.RentalManagementSystem.common.entity.Model;
+import hanyang.RentalManagementSystem.common.entity.ModelVersion;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
-import hanyang.RentalManagementSystem.common.repository.*;
+import hanyang.RentalManagementSystem.common.repository.DeviceRepository;
+import hanyang.RentalManagementSystem.common.repository.ModelRepository;
+import hanyang.RentalManagementSystem.common.repository.ModelVersionRepository;
+import hanyang.RentalManagementSystem.taewoong.dto.FileUploadResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.ModelResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.ModelUpsertRequest;
+import hanyang.RentalManagementSystem.taewoong.dto.ModelVersionResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.ModelVersionUpsertRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.http.*;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,88 +47,79 @@ public class ModelService {
     @Value("${file.upload-dir}")
     private String uploadDir;
 
-    public CommonResponse<List<Map<String, Object>>> findAll(CommonSearchRequest request) {
-        Page<hanyang.RentalManagementSystem.common.entity.Model> page = modelRepository.findAll(request.toPageable());
-        List<Map<String, Object>> data = page.getContent().stream().map(this::toMap).collect(Collectors.toList());
-        return CommonResponse.success(data, Pagination.of(page));
+    public CommonResponse<List<ModelResponse>> findAll(CommonSearchRequest request) {
+        Page<Model> page = modelRepository.findAll(request.toPageable());
+        return CommonResponse.success(page.getContent().stream().map(ModelResponse::from).toList(), Pagination.of(page));
     }
 
-    public CommonResponse<Map<String, Object>> findById(Long id) {
-        return CommonResponse.success(toMap(getModel(id)));
+    public CommonResponse<ModelResponse> findById(Long id) {
+        return CommonResponse.success(ModelResponse.from(getModel(id)));
     }
 
     @Transactional
-    public CommonResponse<Map<String, Object>> create(Map<String, Object> body) {
-        hanyang.RentalManagementSystem.common.entity.Model model = hanyang.RentalManagementSystem.common.entity.Model.builder()
-                .modelName((String) body.get("modelName"))
-                .manufacturer((String) body.get("manufacturer"))
-                .description((String) body.get("description"))
+    public CommonResponse<ModelResponse> create(ModelUpsertRequest req) {
+        Model model = Model.builder()
+                .modelName(req.getModelName())
+                .manufacturer(req.getManufacturer())
+                .description(req.getDescription())
                 .build();
         modelRepository.save(model);
-        return CommonResponse.created(toMap(model));
+        return CommonResponse.created(ModelResponse.from(model));
     }
 
     @Transactional
-    public CommonResponse<Map<String, Object>> update(Long id, Map<String, Object> body) {
-        hanyang.RentalManagementSystem.common.entity.Model model = getModel(id);
-        if (body.containsKey("modelName")) model.setModelName((String) body.get("modelName"));
-        if (body.containsKey("manufacturer")) model.setManufacturer((String) body.get("manufacturer"));
-        if (body.containsKey("description")) model.setDescription((String) body.get("description"));
-        return CommonResponse.success(toMap(model));
+    public CommonResponse<ModelResponse> update(Long id, ModelUpsertRequest req) {
+        Model model = getModel(id);
+        if (req.getModelName() != null) model.setModelName(req.getModelName());
+        if (req.getManufacturer() != null) model.setManufacturer(req.getManufacturer());
+        if (req.getDescription() != null) model.setDescription(req.getDescription());
+        return CommonResponse.success(ModelResponse.from(model));
     }
 
     @Transactional
     public void delete(Long id) {
-        hanyang.RentalManagementSystem.common.entity.Model model = getModel(id);
         // Cascade: 하위 버전도 soft delete
-        model.getVersions().forEach(v -> v.setIsDeleted(true));
+        getModel(id).getVersions().forEach(v -> v.setIsDeleted(true));
     }
 
     @Transactional
-    public CommonResponse<Map<String, Object>> createVersion(Long modelId, Map<String, Object> body) {
-        hanyang.RentalManagementSystem.common.entity.Model model = getModel(modelId);
+    public CommonResponse<ModelVersionResponse> createVersion(Long modelId, ModelVersionUpsertRequest req) {
+        Model model = getModel(modelId);
         ModelVersion mv = ModelVersion.builder()
                 .model(model)
-                .version((String) body.get("version"))
-                .spec((String) body.get("spec"))
-                .releaseDate(body.get("releaseDate") != null ? LocalDate.parse((String) body.get("releaseDate")) : null)
+                .version(req.getVersion())
+                .spec(req.getSpec())
+                .releaseDate(req.getReleaseDate() != null ? LocalDate.parse(req.getReleaseDate()) : null)
                 .isDeleted(false)
                 .build();
         modelVersionRepository.save(mv);
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", mv.getId());
-        map.put("version", mv.getVersion());
-        map.put("spec", mv.getSpec());
-        return CommonResponse.created(map);
+        return CommonResponse.created(ModelVersionResponse.from(mv));
     }
 
     @Transactional
-    public CommonResponse<Map<String, Object>> updateVersion(Long id, Map<String, Object> body) {
+    public CommonResponse<ModelVersionResponse> updateVersion(Long id, ModelVersionUpsertRequest req) {
         ModelVersion mv = getModelVersion(id);
-        if (body.containsKey("version")) mv.setVersion((String) body.get("version"));
-        if (body.containsKey("spec")) mv.setSpec((String) body.get("spec"));
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", mv.getId());
-        map.put("version", mv.getVersion());
-        return CommonResponse.success(map);
+        if (req.getVersion() != null) mv.setVersion(req.getVersion());
+        if (req.getSpec() != null) mv.setSpec(req.getSpec());
+        if (req.getReleaseDate() != null) mv.setReleaseDate(LocalDate.parse(req.getReleaseDate()));
+        return CommonResponse.success(ModelVersionResponse.from(mv));
     }
 
     @Transactional
     public void deleteVersion(Long id) {
         ModelVersion mv = getModelVersion(id);
-        boolean hasDevices = deviceRepository.findAll().stream()
-                .anyMatch(d -> d.getModelVersion().getId().equals(id) && !d.getIsDeleted());
-        if (hasDevices) {
+        // 교수님 피드백 #3: 전체 device findAll 대신 count 쿼리로 연결 여부 확인
+        if (deviceRepository.countByModelVersionIdAndIsDeletedFalse(id) > 0) {
             throw new CustomException("MODEL_VERSION_HAS_DEVICES", "연결된 디바이스가 있어 삭제할 수 없습니다.");
         }
         mv.setIsDeleted(true);
     }
 
     @Transactional
-    public CommonResponse<Map<String, Object>> uploadManual(Long id, MultipartFile file) {
+    public CommonResponse<FileUploadResponse> uploadManual(Long id, MultipartFile file) {
         ModelVersion mv = getModelVersion(id);
         String originalName = file.getOriginalFilename();
-        String savedName = UUID.randomUUID().toString() + "_" + originalName;
+        String savedName = UUID.randomUUID() + "_" + originalName;
         try {
             Path dir = Paths.get(uploadDir);
             if (!Files.exists(dir)) Files.createDirectories(dir);
@@ -121,10 +129,8 @@ public class ModelService {
         }
         mv.setManualFileName(originalName);
         mv.setManualPath(savedName);
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("savedFileName", savedName);
-        map.put("originalFileName", originalName);
-        return CommonResponse.created(map);
+        return CommonResponse.created(FileUploadResponse.builder()
+                .savedFileName(savedName).originalFileName(originalName).build());
     }
 
     public ResponseEntity<byte[]> downloadManual(Long id) {
@@ -144,7 +150,7 @@ public class ModelService {
         }
     }
 
-    private hanyang.RentalManagementSystem.common.entity.Model getModel(Long id) {
+    private Model getModel(Long id) {
         return modelRepository.findById(id)
                 .orElseThrow(() -> new CustomException("MODEL_NOT_FOUND", "모델을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
@@ -152,23 +158,5 @@ public class ModelService {
     private ModelVersion getModelVersion(Long id) {
         return modelVersionRepository.findById(id)
                 .orElseThrow(() -> new CustomException("MODEL_VERSION_NOT_FOUND", "모델버전을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-    }
-
-    private Map<String, Object> toMap(hanyang.RentalManagementSystem.common.entity.Model m) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", m.getId());
-        map.put("modelName", m.getModelName());
-        map.put("manufacturer", m.getManufacturer());
-        map.put("description", m.getDescription());
-        map.put("versions", m.getVersions().stream().filter(v -> !v.getIsDeleted()).map(v -> {
-            Map<String, Object> vm = new LinkedHashMap<>();
-            vm.put("id", v.getId());
-            vm.put("version", v.getVersion());
-            vm.put("spec", v.getSpec());
-            vm.put("releaseDate", v.getReleaseDate());
-            vm.put("manualFileName", v.getManualFileName());
-            return vm;
-        }).collect(Collectors.toList()));
-        return map;
     }
 }

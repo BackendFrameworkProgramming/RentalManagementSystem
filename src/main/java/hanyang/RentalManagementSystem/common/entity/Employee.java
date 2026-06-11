@@ -21,6 +21,9 @@ public class Employee extends BaseEntity {
     private String empNo;
     @Column(name = "job_title", length = 30)
     private String jobTitle;
+    // TODO(eunhye): 교수님 피드백 #5 — employmentType/workStatus를 Enum으로 전환할 것.
+    //   employmentType: FULL_TIME / CONTRACT,  workStatus: WORKING / LEAVE (DB 기존값과 일치).
+    //   참고: Device.status(DeviceStatus) 적용 방식 그대로 (EnumType.STRING).
     @Column(name = "employment_type", length = 20, nullable = false)
     private String employmentType;
     @Column(name = "work_status", length = 20, nullable = false)

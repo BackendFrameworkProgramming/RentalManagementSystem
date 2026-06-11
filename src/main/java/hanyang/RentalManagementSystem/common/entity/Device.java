@@ -1,5 +1,6 @@
 package hanyang.RentalManagementSystem.common.entity;
 
+import hanyang.RentalManagementSystem.common.enums.DeviceStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -17,9 +18,11 @@ public class Device extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private Branch branch;
+    // 교수님 피드백 #5: 상태를 문자열 대신 Enum (EnumType.STRING → 기존 컬럼/값 유지)
+    @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     @Builder.Default
-    private String status = "INCOMING";
+    private DeviceStatus status = DeviceStatus.INCOMING;
     @Column(length = 10)
     private String battery;
     @Column(name = "branch_send_date")

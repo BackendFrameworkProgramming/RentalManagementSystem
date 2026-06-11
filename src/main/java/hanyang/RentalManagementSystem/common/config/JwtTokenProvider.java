@@ -25,12 +25,13 @@ public class JwtTokenProvider {
         this.refreshExpiration = refreshExpiration;
     }
 
-    public String createAccessToken(Long userId, String loginId, String role) {
+    public String createAccessToken(Long userId, String loginId, String role, Long branchId) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("loginId", loginId)
                 .claim("role", role)
+                .claim("branchId", branchId)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + accessExpiration))
                 .signWith(key)
@@ -66,6 +67,11 @@ public class JwtTokenProvider {
 
     public String getRole(String token) {
         return parseClaims(token).get("role", String.class);
+    }
+
+    public Long getBranchId(String token) {
+        Object v = parseClaims(token).get("branchId");
+        return v == null ? null : ((Number) v).longValue();
     }
 
     public long getRefreshExpiration() {

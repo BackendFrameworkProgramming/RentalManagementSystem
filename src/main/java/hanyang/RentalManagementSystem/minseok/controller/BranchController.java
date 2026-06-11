@@ -1,6 +1,11 @@
 package hanyang.RentalManagementSystem.minseok.controller;
 
-import hanyang.RentalManagementSystem.common.dto.*;
+import hanyang.RentalManagementSystem.common.dto.CommonResponse;
+import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
+import hanyang.RentalManagementSystem.minseok.dto.BranchManagerResponse;
+import hanyang.RentalManagementSystem.minseok.dto.BranchManagerUpsertRequest;
+import hanyang.RentalManagementSystem.minseok.dto.BranchResponse;
+import hanyang.RentalManagementSystem.minseok.dto.BranchUpsertRequest;
 import hanyang.RentalManagementSystem.minseok.service.BranchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -8,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -16,50 +20,42 @@ public class BranchController {
 
     private final BranchService branchService;
 
-    // 5-1
     @GetMapping("/api/branches")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> list(CommonSearchRequest request) {
+    public ResponseEntity<CommonResponse<List<BranchResponse>>> list(CommonSearchRequest request) {
         return ResponseEntity.ok(branchService.findAll(request));
     }
 
-    // 5-2
     @PostMapping("/api/branches")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> create(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(branchService.create(body));
+    public ResponseEntity<CommonResponse<BranchResponse>> create(@RequestBody BranchUpsertRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(branchService.create(request));
     }
 
-    // 5-3
     @PatchMapping("/api/branches/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(branchService.update(id, body));
+    public ResponseEntity<CommonResponse<BranchResponse>> update(@PathVariable Long id, @RequestBody BranchUpsertRequest request) {
+        return ResponseEntity.ok(branchService.update(id, request));
     }
 
-    // 5-4
     @DeleteMapping("/api/branches/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         branchService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
-    // 5-5
     @GetMapping("/api/branches/{id}/managers")
-    public ResponseEntity<CommonResponse<List<Map<String, Object>>>> listManagers(@PathVariable Long id, CommonSearchRequest request) {
+    public ResponseEntity<CommonResponse<List<BranchManagerResponse>>> listManagers(@PathVariable Long id, CommonSearchRequest request) {
         return ResponseEntity.ok(branchService.findManagers(id, request));
     }
 
-    // 5-6
     @PostMapping("/api/branch-managers")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> createManager(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(branchService.createManager(body));
+    public ResponseEntity<CommonResponse<BranchManagerResponse>> createManager(@RequestBody BranchManagerUpsertRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(branchService.createManager(request));
     }
 
-    // 5-7
     @PatchMapping("/api/branch-managers/{id}")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> updateManager(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(branchService.updateManager(id, body));
+    public ResponseEntity<CommonResponse<BranchManagerResponse>> updateManager(@PathVariable Long id, @RequestBody BranchManagerUpsertRequest request) {
+        return ResponseEntity.ok(branchService.updateManager(id, request));
     }
 
-    // 5-8
     @DeleteMapping("/api/branch-managers/{id}")
     public ResponseEntity<Void> deleteManager(@PathVariable Long id) {
         branchService.deleteManager(id);

@@ -24,6 +24,9 @@ public class AsRecord extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendor_id")
     private Vendor vendor;
+    // TODO(gyumin): 교수님 피드백 #5 — status를 AsStatus enum으로 전환할 것.
+    //   참고: Rental.status(RentalStatus) 적용 방식 그대로 (EnumType.STRING).
+    //   ⚠ 기존 DB에 'COMPLETED'(2건)와 코드의 'AS_COMPLETED'가 불일치 → enum 전환 시 데이터 정리 필요.
     @Column(length = 20, nullable = false)
     private String status;
     @Column(name = "branch_send_date")

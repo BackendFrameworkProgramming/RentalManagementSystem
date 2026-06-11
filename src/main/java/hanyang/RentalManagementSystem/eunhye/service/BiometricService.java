@@ -6,11 +6,21 @@ import hanyang.RentalManagementSystem.common.entity.BiometricData;
 import hanyang.RentalManagementSystem.common.entity.Device;
 import hanyang.RentalManagementSystem.common.entity.EmergencyRecord;
 import hanyang.RentalManagementSystem.common.entity.Rental;
+import hanyang.RentalManagementSystem.common.enums.RentalStatus;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
 import hanyang.RentalManagementSystem.common.repository.BiometricDataRepository;
 import hanyang.RentalManagementSystem.common.repository.DeviceRepository;
 import hanyang.RentalManagementSystem.common.repository.EmergencyRecordRepository;
 import hanyang.RentalManagementSystem.common.repository.RentalRepository;
+import hanyang.RentalManagementSystem.eunhye.dto.BiometricCreateRequest;
+import hanyang.RentalManagementSystem.eunhye.dto.BiometricDetailResponse;
+import hanyang.RentalManagementSystem.eunhye.dto.BiometricListResponse;
+import hanyang.RentalManagementSystem.eunhye.dto.BiometricModelSummaryResponse;
+import hanyang.RentalManagementSystem.eunhye.dto.BiometricResponse;
+import hanyang.RentalManagementSystem.eunhye.dto.EmergencyCreateRequest;
+import hanyang.RentalManagementSystem.eunhye.dto.EmergencyListResponse;
+import hanyang.RentalManagementSystem.eunhye.dto.EmergencyResponse;
+import hanyang.RentalManagementSystem.eunhye.dto.EmergencyUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,11 +28,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.*;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -35,349 +46,147 @@ public class BiometricService {
     private final DeviceRepository deviceRepository;
 
     @Transactional(readOnly = true)
-    public CommonResponse<Map<String, Object>> getBiometricDataList(int page, int size) {
-
-        Page<BiometricData> biometricPage =
-                biometricDataRepository.findAllByIsDeletedFalse(
-                        PageRequest.of(page - 1, size)
-                );
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("biometricData",
-                biometricPage.getContent().stream().map(this::toBiometricMap).toList());
-
+    public CommonResponse<BiometricListResponse> getBiometricDataList(int page, int size) {
+        Page<BiometricData> biometricPage = biometricDataRepository.findAllByIsDeletedFalse(PageRequest.of(page - 1, size));
+        BiometricListResponse data = BiometricListResponse.builder()
+                .biometricData(biometricPage.getContent().stream().map(this::toBiometricResponse).toList())
+                .build();
         return CommonResponse.success(data, Pagination.of(biometricPage));
     }
 
     @Transactional(readOnly = true)
-    public CommonResponse<Map<String, Object>> getBiometricDataDetail(Long id) {
-
+    public CommonResponse<BiometricDetailResponse> getBiometricDataDetail(Long id) {
         BiometricData biometricData = biometricDataRepository.findById(id)
-                .orElseThrow(() -> new CustomException(
-                        "BIOMETRIC_NOT_FOUND",
-                        "생체정보를 찾을 수 없습니다.",
-                        HttpStatus.NOT_FOUND
-                ));
-
-        List<EmergencyRecord> emergencyRecords =
-                emergencyRecordRepository.findAllByBiometricDataId(id);
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("biometricData", toBiometricMap(biometricData));
-        data.put("emergencyRecords",
-                emergencyRecords.stream().map(this::toEmergencyMap).toList());
-
+                .orElseThrow(() -> new CustomException("BIOMETRIC_NOT_FOUND", "생체정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        BiometricDetailResponse data = BiometricDetailResponse.builder()
+                .biometricData(toBiometricResponse(biometricData))
+                .emergencyRecords(emergencyRecordRepository.findAllByBiometricDataId(id).stream()
+                        .map(EmergencyResponse::from).toList())
+                .build();
         return CommonResponse.success(data);
     }
 
-    public CommonResponse<Map<String, Object>> createBiometricData(Map<String, Object> body) {
-
-        Long deviceId = toLong(body.get("deviceId"));
-
-        Device device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new CustomException(
-                        "DEVICE_NOT_FOUND",
-                        "디바이스를 찾을 수 없습니다.",
-                        HttpStatus.NOT_FOUND
-                ));
-
-        Rental rental = rentalRepository
-                .findByDeviceIdAndStatusAndIsDeletedFalse(deviceId, "RENTING")
-                .orElse(null);
+    public CommonResponse<BiometricResponse> createBiometricData(BiometricCreateRequest req) {
+        if (req.getDeviceId() == null) {
+            throw new CustomException("INVALID_REQUEST", "deviceId는 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        Device device = deviceRepository.findById(req.getDeviceId())
+                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        Rental rental = rentalRepository.findByDeviceIdAndStatusAndIsDeletedFalse(req.getDeviceId(), RentalStatus.RENTING).orElse(null);
 
         BiometricData biometricData = BiometricData.builder()
                 .device(device)
                 .rental(rental)
-                .userName(toString(body.get("userName")))
-                .latestUseDate(toLocalDate(body.get("latestUseDate")))
-                .latestUseTime(toString(body.get("latestUseTime")))
-                .useTimePerDay(toString(body.get("useTimePerDay")))
-                .breathPerDay(toInteger(body.get("breathPerDay")))
-                .stepsPerDay(toInteger(body.get("stepsPerDay")))
-                .totalUseTime(toString(body.get("totalUseTime")))
-                .totalSteps(toInteger(body.get("totalSteps")))
+                .userName(req.getUserName())
+                .latestUseDate(parseDate(req.getLatestUseDate()))
+                .latestUseTime(req.getLatestUseTime())
+                .useTimePerDay(req.getUseTimePerDay())
+                .breathPerDay(req.getBreathPerDay())
+                .stepsPerDay(req.getStepsPerDay())
+                .totalUseTime(req.getTotalUseTime())
+                .totalSteps(req.getTotalSteps())
                 .latestUpdateTime(LocalDateTime.now())
-                .latestLocation(toString(body.get("latestLocation")))
+                .latestLocation(req.getLatestLocation())
                 .isDeleted(false)
                 .build();
-
-        BiometricData saved = biometricDataRepository.save(biometricData);
-
-        return CommonResponse.created(toBiometricMap(saved));
+        biometricDataRepository.save(biometricData);
+        return CommonResponse.created(toBiometricResponse(biometricData));
     }
 
-    public CommonResponse<Map<String, Object>> deleteBiometricData(Long id) {
-
+    public CommonResponse<Void> deleteBiometricData(Long id) {
         BiometricData biometricData = biometricDataRepository.findById(id)
-                .orElseThrow(() -> new CustomException(
-                        "BIOMETRIC_NOT_FOUND",
-                        "생체정보를 찾을 수 없습니다.",
-                        HttpStatus.NOT_FOUND
-                ));
-
+                .orElseThrow(() -> new CustomException("BIOMETRIC_NOT_FOUND", "생체정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         biometricData.setIsDeleted(true);
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", id);
-        data.put("message", "생체정보가 삭제되었습니다.");
-
-        return CommonResponse.success(data);
+        return CommonResponse.success(null);
     }
 
     @Transactional(readOnly = true)
-    public CommonResponse<Map<String, Object>> getEmergencyRecords(int page, int size) {
-
-        Page<EmergencyRecord> emergencyPage =
-                emergencyRecordRepository.findAll(PageRequest.of(page - 1, size));
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("emergencyRecords",
-                emergencyPage.getContent().stream().map(this::toEmergencyMap).toList());
-
+    public CommonResponse<EmergencyListResponse> getEmergencyRecords(int page, int size) {
+        Page<EmergencyRecord> emergencyPage = emergencyRecordRepository.findAll(PageRequest.of(page - 1, size));
+        EmergencyListResponse data = EmergencyListResponse.builder()
+                .emergencyRecords(emergencyPage.getContent().stream().map(EmergencyResponse::from).toList())
+                .build();
         return CommonResponse.success(data, Pagination.of(emergencyPage));
     }
 
-    public CommonResponse<Map<String, Object>> createEmergencyRecord(Map<String, Object> body) {
-
-        Long biometricDataId = toLong(body.get("biometricDataId"));
-
-        BiometricData biometricData = biometricDataRepository.findById(biometricDataId)
-                .orElseThrow(() -> new CustomException(
-                        "BIOMETRIC_NOT_FOUND",
-                        "생체정보를 찾을 수 없습니다.",
-                        HttpStatus.NOT_FOUND
-                ));
-
+    public CommonResponse<EmergencyResponse> createEmergencyRecord(EmergencyCreateRequest req) {
+        if (req.getBiometricDataId() == null) {
+            throw new CustomException("INVALID_REQUEST", "biometricDataId는 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        BiometricData biometricData = biometricDataRepository.findById(req.getBiometricDataId())
+                .orElseThrow(() -> new CustomException("BIOMETRIC_NOT_FOUND", "생체정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         EmergencyRecord emergencyRecord = EmergencyRecord.builder()
                 .biometricData(biometricData)
                 .rental(biometricData.getRental())
-                .emergencyType(toString(body.get("emergencyType")))
+                .emergencyType(req.getEmergencyType())
                 .emergencyRecordTime(LocalDateTime.now())
-                .actionContent(toString(body.get("actionContent")))
-                .actionResult(toString(body.get("actionResult")))
+                .actionContent(req.getActionContent())
+                .actionResult(req.getActionResult())
                 .build();
-
-        EmergencyRecord saved = emergencyRecordRepository.save(emergencyRecord);
-
-        return CommonResponse.created(toEmergencyMap(saved));
+        emergencyRecordRepository.save(emergencyRecord);
+        return CommonResponse.created(EmergencyResponse.from(emergencyRecord));
     }
 
-    public CommonResponse<Map<String, Object>> updateEmergencyRecord(Long id, Map<String, Object> body) {
-
+    public CommonResponse<EmergencyResponse> updateEmergencyRecord(Long id, EmergencyUpdateRequest req) {
         EmergencyRecord emergencyRecord = emergencyRecordRepository.findById(id)
-                .orElseThrow(() -> new CustomException(
-                        "EMERGENCY_NOT_FOUND",
-                        "응급기록을 찾을 수 없습니다.",
-                        HttpStatus.NOT_FOUND
-                ));
-
-        if (body.containsKey("actionContent")) {
-            emergencyRecord.setActionContent(toString(body.get("actionContent")));
-        }
-
-        if (body.containsKey("actionResult")) {
-            emergencyRecord.setActionResult(toString(body.get("actionResult")));
-        }
-
-        return CommonResponse.success(toEmergencyMap(emergencyRecord));
+                .orElseThrow(() -> new CustomException("EMERGENCY_NOT_FOUND", "응급기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        if (req.getActionContent() != null) emergencyRecord.setActionContent(req.getActionContent());
+        if (req.getActionResult() != null) emergencyRecord.setActionResult(req.getActionResult());
+        return CommonResponse.success(EmergencyResponse.from(emergencyRecord));
     }
 
     @Transactional(readOnly = true)
-    public CommonResponse<Map<String, Object>> getSummaryByModel() {
-
+    public CommonResponse<BiometricModelSummaryResponse> getSummaryByModel() {
         Map<String, Long> summary = new LinkedHashMap<>();
-
         for (Object[] row : biometricDataRepository.countByModelName()) {
             String modelName = row[0] != null ? row[0].toString() : "-";
             Long count = ((Number) row[1]).longValue();
             summary.merge(modelName, count, Long::sum);
         }
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("summary", summary);
-
-        return CommonResponse.success(data);
+        return CommonResponse.success(BiometricModelSummaryResponse.builder().summary(summary).build());
     }
 
-    private Map<String, Object> toBiometricMap(BiometricData biometricData) {
-
-        Map<String, Object> map = new LinkedHashMap<>();
-
-        Device device = biometricData.getDevice();
-
-        List<EmergencyRecord> emergencyRecords =
-                emergencyRecordRepository.findAllByBiometricDataId(biometricData.getId());
-
-        EmergencyRecord latestEmergencyRecord = emergencyRecords.stream()
+    /** 생체정보 DTO 빌드 (최신 응급기록으로 emergencyYn 계산). */
+    private BiometricResponse toBiometricResponse(BiometricData bd) {
+        Device device = bd.getDevice();
+        EmergencyRecord latest = emergencyRecordRepository.findAllByBiometricDataId(bd.getId()).stream()
                 .filter(e -> e.getEmergencyRecordTime() != null)
                 .max(Comparator.comparing(EmergencyRecord::getEmergencyRecordTime))
                 .orElse(null);
 
-        map.put("id", biometricData.getId());
+        String modelName = (device != null && device.getModelVersion() != null && device.getModelVersion().getModel() != null)
+                ? device.getModelVersion().getModel().getModelName() : "-";
+        String branchName = (device != null && device.getBranch() != null && device.getBranch().getBranchName() != null)
+                ? device.getBranch().getBranchName() : "-";
+        String battery = (device != null && device.getBattery() != null) ? device.getBattery() : "-";
 
-        map.put("branchName", getBranchName(device));
-        map.put("deviceId", device != null ? device.getId() : null);
-        map.put("modelName", getModelName(device));
-        map.put("battery", getBattery(device));
-
-        map.put("userName", biometricData.getUserName());
-        map.put("latestUseDate", biometricData.getLatestUseDate());
-        map.put("latestUseTime", biometricData.getLatestUseTime());
-        map.put("useTimePerDay", biometricData.getUseTimePerDay());
-        map.put("breathPerDay", biometricData.getBreathPerDay());
-        map.put("stepsPerDay", biometricData.getStepsPerDay());
-        map.put("totalUseTime", biometricData.getTotalUseTime());
-        map.put("totalSteps", biometricData.getTotalSteps());
-
-        map.put("emergencyYn", latestEmergencyRecord != null ? "Y" : "N");
-        map.put("emergencyRecordTime",
-                latestEmergencyRecord != null ? latestEmergencyRecord.getEmergencyRecordTime() : null);
-
-        map.put("latestUpdateTime", biometricData.getLatestUpdateTime());
-        map.put("latestLocation", biometricData.getLatestLocation());
-
-        return map;
+        return BiometricResponse.builder()
+                .id(bd.getId())
+                .branchName(branchName)
+                .deviceId(device != null ? device.getId() : null)
+                .modelName(modelName)
+                .battery(battery)
+                .userName(bd.getUserName())
+                .latestUseDate(bd.getLatestUseDate())
+                .latestUseTime(bd.getLatestUseTime())
+                .useTimePerDay(bd.getUseTimePerDay())
+                .breathPerDay(bd.getBreathPerDay())
+                .stepsPerDay(bd.getStepsPerDay())
+                .totalUseTime(bd.getTotalUseTime())
+                .totalSteps(bd.getTotalSteps())
+                .emergencyYn(latest != null ? "Y" : "N")
+                .emergencyRecordTime(latest != null ? latest.getEmergencyRecordTime() : null)
+                .latestUpdateTime(bd.getLatestUpdateTime())
+                .latestLocation(bd.getLatestLocation())
+                .build();
     }
 
-    private Map<String, Object> toEmergencyMap(EmergencyRecord emergencyRecord) {
-
-        Map<String, Object> map = new LinkedHashMap<>();
-
-        map.put("id", emergencyRecord.getId());
-        map.put("biometricDataId",
-                emergencyRecord.getBiometricData() != null
-                        ? emergencyRecord.getBiometricData().getId()
-                        : null);
-        map.put("emergencyType", emergencyRecord.getEmergencyType());
-        map.put("emergencyRecordTime", emergencyRecord.getEmergencyRecordTime());
-        map.put("actionContent", emergencyRecord.getActionContent());
-        map.put("actionResult", emergencyRecord.getActionResult());
-
-        return map;
-    }
-
-    private String getModelName(Device device) {
+    private LocalDate parseDate(String v) {
+        if (v == null || v.isBlank()) return null;
         try {
-            if (device == null ||
-                    device.getModelVersion() == null ||
-                    device.getModelVersion().getModel() == null) {
-                return "-";
-            }
-
-            return device.getModelVersion().getModel().getModelName();
-        } catch (Exception e) {
-            return "-";
-        }
-    }
-
-    private String getBranchName(Device device) {
-        String branchName = firstNonBlank(
-                callGetterAsString(device, "getBranchName"),
-                callGetterAsString(device, "getCenterName"),
-                callGetterAsString(device, "getLocationName")
-        );
-
-        if (branchName != null) {
-            return branchName;
-        }
-
-        Object branch = firstNonNull(
-                callGetter(device, "getBranch"),
-                callGetter(device, "getCenter"),
-                callGetter(device, "getRentalBranch")
-        );
-
-        return firstNonBlank(
-                callGetterAsString(branch, "getBranchName"),
-                callGetterAsString(branch, "getCenterName"),
-                callGetterAsString(branch, "getName")
-        );
-    }
-
-    private String getBattery(Device device) {
-        String battery = firstNonBlank(
-                callGetterAsString(device, "getBattery"),
-                callGetterAsString(device, "getBatteryLevel"),
-                callGetterAsString(device, "getBatteryPercent"),
-                callGetterAsString(device, "getRemainBattery")
-        );
-
-        return battery != null ? battery : "-";
-    }
-
-    private Object callGetter(Object target, String methodName) {
-        try {
-            if (target == null) return null;
-
-            Method method = target.getClass().getMethod(methodName);
-            return method.invoke(target);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String callGetterAsString(Object target, String methodName) {
-        Object value = callGetter(target, methodName);
-        return value == null ? null : value.toString();
-    }
-
-    private Object firstNonNull(Object... values) {
-        for (Object value : values) {
-            if (value != null) {
-                return value;
-            }
-        }
-
-        return null;
-    }
-
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-
-        return "-";
-    }
-
-    private Long toLong(Object value) {
-        if (value == null || value.toString().isBlank()) {
-            throw new CustomException("INVALID_REQUEST", "필수 값이 누락되었습니다.");
-        }
-
-        try {
-            return Long.valueOf(value.toString());
-        } catch (NumberFormatException e) {
-            throw new CustomException("INVALID_REQUEST", "숫자 형식이 올바르지 않습니다: " + value);
-        }
-    }
-
-    private Integer toInteger(Object value) {
-        if (value == null || value.toString().isBlank()) {
-            return null;
-        }
-
-        try {
-            return Integer.valueOf(value.toString());
-        } catch (NumberFormatException e) {
-            throw new CustomException("INVALID_REQUEST", "숫자 형식이 올바르지 않습니다: " + value);
-        }
-    }
-
-    private String toString(Object value) {
-        return value == null ? null : value.toString();
-    }
-
-    private LocalDate toLocalDate(Object value) {
-        if (value == null || value.toString().isBlank()) {
-            return null;
-        }
-
-        try {
-            return LocalDate.parse(value.toString());
+            return LocalDate.parse(v);
         } catch (DateTimeParseException e) {
-            throw new CustomException("INVALID_REQUEST", "날짜 형식이 올바르지 않습니다(YYYY-MM-DD): " + value);
+            throw new CustomException("INVALID_REQUEST", "날짜 형식이 올바르지 않습니다(YYYY-MM-DD): " + v, HttpStatus.BAD_REQUEST);
         }
     }
 }

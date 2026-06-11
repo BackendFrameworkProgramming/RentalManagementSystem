@@ -1,12 +1,12 @@
 package hanyang.RentalManagementSystem.taewoong.controller;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
-import hanyang.RentalManagementSystem.common.entity.Center;
+import hanyang.RentalManagementSystem.taewoong.dto.CenterResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.CenterUpsertRequest;
 import hanyang.RentalManagementSystem.taewoong.service.CenterService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/center")
@@ -15,12 +15,12 @@ public class CenterController {
     private final CenterService centerService;
 
     @GetMapping
-    public ResponseEntity<CommonResponse<Map<String, Object>>> get() {
+    public ResponseEntity<CommonResponse<CenterResponse>> get() {
         return ResponseEntity.ok(centerService.get());
     }
 
     @PutMapping
-    public ResponseEntity<CommonResponse<Map<String, Object>>> save(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(centerService.save(body));
+    public ResponseEntity<CommonResponse<CenterResponse>> save(@RequestBody CenterUpsertRequest request) {
+        return ResponseEntity.ok(centerService.save(request));
     }
 }

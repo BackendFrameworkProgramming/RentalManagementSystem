@@ -2,6 +2,7 @@ package hanyang.RentalManagementSystem.common.config;
 
 import hanyang.RentalManagementSystem.common.entity.DesignHistory;
 import hanyang.RentalManagementSystem.common.entity.User;
+import hanyang.RentalManagementSystem.common.enums.Role;
 import hanyang.RentalManagementSystem.common.repository.DesignHistoryRepository;
 import hanyang.RentalManagementSystem.common.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) {
         if (!userRepository.existsByUserLoginIdAndIsDeletedFalse("admin")) {
             userRepository.save(User.builder().userLoginId("admin").password(passwordEncoder.encode("admin123"))
-                    .userName("관리자").role("ADMIN").email("admin@team3.com").contact("").build());
+                    .userName("관리자").role(Role.ADMIN).email("admin@team3.com").contact("").build());
             log.info("[INIT] 관리자 계정 생성 완료 (admin / admin123)");
         }
         // 라운드별로 누락된 항목만 추가 시드한다(기존 DB에 새 라운드를 반영하기 위함).
@@ -73,6 +74,14 @@ public class DataInitializer implements CommandLineRunner {
             +"{\"label\":\"OWASP A05 보안 설정 노출 차단\",\"before\":\"show-sql=true, format_sql=true, 로그 DEBUG로 운영 시 SQL/테이블/컬럼 구조 노출\",\"after\":\"운영 기본값 off로 변경. 환경변수(JPA_SHOW_SQL 등)로만 토글\",\"reason\":\"교수님: '스택 트레이스/쿼리 노출로 내부 구조가 유출된다'\"},"
             +"{\"label\":\"OWASP A02 시크릿 외부화\",\"before\":\"DB 비밀번호/JWT 시크릿이 application.properties에 평문 하드코딩\",\"after\":\"${DB_PASSWORD}, ${JWT_SECRET} 환경변수로 분리(기본값 fallback 유지)\",\"reason\":\"교수님: '민감 정보는 단방향/외부화로 보호해야 한다'\"},"
             +"{\"label\":\"OWASP A07 로그인 무차별 대입 방어\",\"before\":\"로그인 실패 횟수 제한 없음 -> 무한 시도 가능\",\"after\":\"LoginAttemptService 추가. 5회 실패 시 5분 일시 잠금\",\"reason\":\"교수님: '인증 시도에 제한을 두고 카운팅/잠금이 필요하다'\"}]");
+        seed(11,"6/12","교수님 최종 피드백 + AI 검증(Claude Opus 4.8)","prof","유저 역할 모델 정립 + 전 도메인 DTO/Enum 리팩토링",
+            "[{\"label\":\"유저 역할 모델 + 데이터 스코핑(IDOR 방어)\",\"before\":\"User가 로그인 계정과 임대 신청자를 겸하나 도메인 연결이 없어 '로그인한 사용자가 누구인지' 알 수 없었음\",\"after\":\"역할 4단계(ADMIN/BRANCH_MANAGER/STAFF/USER) Enum + User↔Employee/Branch 연결 + JWT에 branchId 포함. 일반 USER는 본인 임대/AS만, 지점관리자는 본인 지점만 조회\",\"reason\":\"교수님: '유저=디바이스 착용자/신청자인데 사용자 흐름이 빠져있다'. OWASP A01 메소드/서비스 단위 권한검증\"},"
+            +"{\"label\":\"상태/역할 Enum화\",\"before\":\"status·role을 문자열로 하드코딩(오타가 컴파일에서 안 걸림)\",\"after\":\"Role/DeviceStatus/RentalStatus Enum(@Enumerated STRING). 컬럼/기존값 유지하며 타입 안전 확보\",\"reason\":\"교수님 최종 피드백 #5: '문자열 대신 Enum 타입으로'\"},"
+            +"{\"label\":\"전 도메인 DTO 전환\",\"before\":\"컨트롤러/서비스가 Map<String,Object>로 요청·응답 처리\",\"after\":\"9개 도메인 전부 Request/Response DTO 도입(JSON 계약 보존)\",\"reason\":\"교수님 최종 피드백 #4: 'Map 대신 DTO로 체계화'\"},"
+            +"{\"label\":\"페이징·필터 순서 교정\",\"before\":\"DeviceService는 페이징 먼저->메모리 필터(건수/페이지 깨짐), 임대/AS는 청크 전체스캔 후 필터\",\"after\":\"쿼리 단계(WHERE)에서 필터 후 페이징. 검색/스코핑을 @Query로 처리\",\"reason\":\"교수님 최종 피드백 #1\"},"
+            +"{\"label\":\"findAll 제거 + count/exists 쿼리\",\"before\":\"삭제가능 여부·집계를 findAll().stream()으로 전체 로드 후 계산\",\"after\":\"exists/count/group-by 쿼리로 대체(디바이스 삭제체크, 지점별 집계, 모델버전 연결수 등)\",\"reason\":\"교수님 최종 피드백 #2·#3\"},"
+            +"{\"label\":\"N+1 방어(@EntityGraph) - 다른 조 우수사례 반영\",\"before\":\"목록 조회 시 연관 엔티티 지연로딩으로 N+1\",\"after\":\"@EntityGraph/JOIN FETCH로 디바이스·임대·AS·직원 목록의 연관을 한 번에 페치\",\"reason\":\"교수님: '다른 조 좋은 피드백은 따라가라' - EntityGraph N+1 방어 차용\"},"
+            +"{\"label\":\"팀원 담당 잔여 과제 분배\",\"before\":\"-\",\"after\":\"김규민: AsRecord status→AsStatus Enum(+COMPLETED/AS_COMPLETED 데이터 정리), 정은혜: Employee employmentType/workStatus Enum화, 전민석: Department 삭제체크 findAll→exists. TODO-TEAM.md 참조\",\"reason\":\"팀 프로젝트 - 각자 교수님 피드백 항목 1개씩 직접 수행\"}]");
     }
 
     private void seed(int round, String date, String source, String type, String title, String changes) {

@@ -4,9 +4,14 @@ import hanyang.RentalManagementSystem.common.config.JwtTokenProvider;
 import hanyang.RentalManagementSystem.common.config.LoginAttemptService;
 import hanyang.RentalManagementSystem.common.entity.RefreshToken;
 import hanyang.RentalManagementSystem.common.entity.User;
+import hanyang.RentalManagementSystem.common.enums.Role;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
 import hanyang.RentalManagementSystem.common.repository.RefreshTokenRepository;
 import hanyang.RentalManagementSystem.common.repository.UserRepository;
+import hanyang.RentalManagementSystem.taewoong.dto.AuthTokenResponse;
+import hanyang.RentalManagementSystem.taewoong.dto.LoginRequest;
+import hanyang.RentalManagementSystem.taewoong.dto.SignupRequest;
+import hanyang.RentalManagementSystem.taewoong.dto.UserInfoResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,8 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -28,25 +31,21 @@ public class AuthService {
     private final LoginAttemptService loginAttemptService;
 
     @Transactional
-    public Map<String, Object> signup(Map<String, String> body) {
-        String loginId = body.get("userLoginId");
-        String password = body.get("password");
-        String userName = body.get("userName");
-
-        if (loginId == null || loginId.isBlank() || password == null || password.isBlank() || userName == null || userName.isBlank()) {
+    public AuthTokenResponse signup(SignupRequest req) {
+        if (isBlank(req.getUserLoginId()) || isBlank(req.getPassword()) || isBlank(req.getUserName())) {
             throw new CustomException("INVALID_REQUEST", "아이디, 비밀번호, 이름은 필수입니다.", HttpStatus.BAD_REQUEST);
         }
-        if (userRepository.existsByUserLoginIdAndIsDeletedFalse(loginId)) {
+        if (userRepository.existsByUserLoginIdAndIsDeletedFalse(req.getUserLoginId())) {
             throw new CustomException("DUPLICATE_LOGIN_ID", "이미 사용 중인 아이디입니다.", HttpStatus.CONFLICT);
         }
 
         User user = User.builder()
-                .userLoginId(loginId)
-                .password(passwordEncoder.encode(password))
-                .userName(userName)
-                .contact(body.getOrDefault("contact", ""))
-                .email(body.getOrDefault("email", ""))
-                .role("USER")
+                .userLoginId(req.getUserLoginId())
+                .password(passwordEncoder.encode(req.getPassword()))
+                .userName(req.getUserName())
+                .contact(req.getContact() != null ? req.getContact() : "")
+                .email(req.getEmail() != null ? req.getEmail() : "")
+                .role(Role.USER)
                 .build();
         userRepository.save(user);
 
@@ -54,9 +53,8 @@ public class AuthService {
     }
 
     @Transactional
-    public Map<String, Object> login(Map<String, String> body) {
-        String loginId = body.get("userLoginId");
-        String password = body.get("password");
+    public AuthTokenResponse login(LoginRequest req) {
+        String loginId = req.getUserLoginId();
 
         // OWASP A07(인증 실패): 무차별 대입 방어 - 임계치 초과 시 일시 잠금
         if (loginId != null && loginAttemptService.isLocked(loginId)) {
@@ -68,7 +66,7 @@ public class AuthService {
 
         User user = userRepository.findByUserLoginIdAndIsDeletedFalse(loginId).orElse(null);
 
-        if (user == null || user.getPassword() == null || !passwordEncoder.matches(password, user.getPassword())) {
+        if (user == null || user.getPassword() == null || !passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             if (loginId != null) loginAttemptService.loginFailed(loginId);
             throw new CustomException("LOGIN_FAILED", "아이디 또는 비밀번호가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED);
         }
@@ -79,7 +77,7 @@ public class AuthService {
     }
 
     @Transactional
-    public Map<String, Object> refresh(String refreshTokenStr) {
+    public AuthTokenResponse refresh(String refreshTokenStr) {
         if (refreshTokenStr == null || !jwtTokenProvider.validateToken(refreshTokenStr)) {
             throw new CustomException("INVALID_REFRESH_TOKEN", "유효하지 않은 리프레시 토큰입니다.", HttpStatus.UNAUTHORIZED);
         }
@@ -106,21 +104,26 @@ public class AuthService {
         }
     }
 
-    public Map<String, Object> getCurrentUser(Long userId) {
+    @Transactional(readOnly = true)
+    public UserInfoResponse getCurrentUser(Long userId) {
         User user = userRepository.findByIdAndIsDeletedFalse(userId)
                 .orElseThrow(() -> new CustomException("USER_NOT_FOUND", "사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", user.getId());
-        map.put("userName", user.getUserName());
-        map.put("userLoginId", user.getUserLoginId());
-        map.put("role", user.getRole());
-        map.put("email", user.getEmail());
-        map.put("contact", user.getContact());
-        return map;
+        return UserInfoResponse.builder()
+                .id(user.getId())
+                .userName(user.getUserName())
+                .userLoginId(user.getUserLoginId())
+                .role((user.getRole() == null ? Role.USER : user.getRole()).name())
+                .email(user.getEmail())
+                .contact(user.getContact())
+                .build();
     }
 
-    private Map<String, Object> generateTokens(User user) {
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserLoginId(), user.getRole());
+    private AuthTokenResponse generateTokens(User user) {
+        Role role = user.getRole() == null ? Role.USER : user.getRole();
+        // 지점 관리자라면 branchId를 토큰에 담아 데이터 스코핑에 활용
+        Long branchId = user.getBranch() != null ? user.getBranch().getId() : null;
+
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserLoginId(), role.name(), branchId);
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         RefreshToken entity = RefreshToken.builder()
@@ -130,11 +133,15 @@ public class AuthService {
                 .build();
         refreshTokenRepository.save(entity);
 
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("accessToken", accessToken);
-        result.put("refreshToken", refreshToken);
-        result.put("userName", user.getUserName());
-        result.put("role", user.getRole());
-        return result;
+        return AuthTokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userName(user.getUserName())
+                .role(role.name())
+                .build();
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 }

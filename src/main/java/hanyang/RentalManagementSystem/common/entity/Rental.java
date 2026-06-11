@@ -1,5 +1,6 @@
 package hanyang.RentalManagementSystem.common.entity;
 
+import hanyang.RentalManagementSystem.common.enums.RentalStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -18,8 +19,10 @@ public class Rental extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+    // 교수님 피드백 #5: 상태를 문자열 대신 Enum (EnumType.STRING → 기존 컬럼/값 유지)
+    @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private String status;
+    private RentalStatus status;
     @Column(name = "apply_date")
     private LocalDate applyDate;
     @Column(name = "use_start_date")
