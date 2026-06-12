@@ -19,18 +19,17 @@ import hanyang.RentalManagementSystem.gyumin.dto.RentalResponse;
 import hanyang.RentalManagementSystem.gyumin.dto.RentalUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true, rollbackFor = Exception.class) // checked exception 롤백 보장
 public class RentalService {
 
     private final RentalRepository rentalRepository;
@@ -38,96 +37,98 @@ public class RentalService {
     private final UserRepository userRepository;
     private final BranchRepository branchRepository;
 
-    // 임대 목록 (교수님 #1: 청크 전체스캔+메모리필터 제거 → 쿼리 단계 필터/페이징, @EntityGraph N+1 방어)
-    // 데이터 스코핑(OWASP A01/IDOR): 일반 USER=본인 임대만, BRANCH_MANAGER=본인 지점만, ADMIN/STAFF=전체
+    @Transactional(readOnly = true)
     public CommonResponse<List<RentalResponse>> getRentals(CommonSearchRequest request) {
-        Long branchId = null;
-        Long userId = null;
-        if (SecurityUtil.isBranchManager()) {
-            branchId = SecurityUtil.currentBranchId();
-        } else if (SecurityUtil.isUser()) {
-            userId = SecurityUtil.currentUserId();
-        }
-        String kw = normalizeKeyword(request.getSearchKeyword());
-        Page<Rental> page = rentalRepository.searchRentals(branchId, userId, kw, request.toPageable());
-        return CommonResponse.success(page.getContent().stream().map(RentalResponse::from).toList(), Pagination.of(page));
+        Long targetBranchId = SecurityUtil.isAdmin() ? null : SecurityUtil.currentBranchId();
+        String keyword = normalizeKeyword(request.getSearchKeyword());
+        Pageable pageable = request.toPageable();
+
+        Page<Rental> rentalPage = rentalRepository.searchRentals(targetBranchId, null, keyword, pageable);
+
+        Pagination pagination = new Pagination();
+        pagination.setPage(request.getPage());
+        pagination.setSize(request.getSize());
+        pagination.setTotalElements(rentalPage.getTotalElements());
+        pagination.setTotalPages(rentalPage.getTotalPages());
+
+        List<RentalResponse> responses = rentalPage.stream().map(RentalResponse::from).toList();
+        return CommonResponse.success(responses, pagination);
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public CommonResponse<RentalResponse> createRental(RentalCreateRequest req) {
-        if (req.getDeviceId() == null || req.getUserId() == null || req.getBranchId() == null) {
-            throw new CustomException("INVALID_REQUEST", "필수 파라미터가 누락되었습니다.", HttpStatus.BAD_REQUEST);
+    @Transactional
+    public CommonResponse<RentalResponse> createRental(RentalCreateRequest request) {
+        Device device = deviceRepository.findById(request.getDeviceId())
+                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+
+        if (device.getStatus() != DeviceStatus.RENTAL_READY) {
+            throw new CustomException("DEVICE_NOT_AVAILABLE", "임대 가능한 상태가 아닙니다.", HttpStatus.BAD_REQUEST);
         }
-        if (rentalRepository.existsByDeviceIdAndReturnDateIsNullAndIsDeletedFalse(req.getDeviceId())) {
-            throw new CustomException("DUPLICATE_RENTAL", "해당 기기는 이미 임대 중입니다.", HttpStatus.CONFLICT);
-        }
-        Device device = deviceRepository.findById(req.getDeviceId())
-                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "기기를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
         Rental rental = Rental.builder()
+                .user(userRepository.getReferenceById(request.getUserId()))
                 .device(device)
-                .branch(branchRepository.findById(req.getBranchId()).orElse(null))
-                .user(userRepository.findById(req.getUserId()).orElse(null))
-                .status(RentalStatus.RENTING)
+                .branch(branchRepository.getReferenceById(request.getBranchId()))
+                .status(RentalStatus.APPLIED)
                 .applyDate(LocalDate.now())
-                .isDeleted(false)
-                .wearYn(false)
                 .build();
 
         device.setStatus(DeviceStatus.RENTING);
-        deviceRepository.save(device);
         rentalRepository.save(rental);
+
         return CommonResponse.created(RentalResponse.from(rental));
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public CommonResponse<RentalResponse> updateRental(Long id, RentalUpdateRequest req) {
+    @Transactional
+    public CommonResponse<RentalResponse> updateRental(Long id, RentalUpdateRequest request) {
         Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "임대 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
-        if (req.getStatus() != null) {
-            RentalStatus next = parseStatus(req.getStatus());
-            validateStatusTransition(rental.getStatus(), next);
-            rental.setStatus(next);
+        RentalStatus nextStatus = parseStatus(request.getStatus());
+        validateStatusTransition(rental.getStatus(), nextStatus);
+
+        rental.setStatus(nextStatus);
+
+        if (nextStatus == RentalStatus.RETURNED || nextStatus == RentalStatus.REPLACED) {
+            rental.setReturnDate(LocalDate.now());
+            rental.getDevice().setStatus(DeviceStatus.RENTAL_READY);
+        } else if (nextStatus == RentalStatus.AS_RECEIVED) {
+            rental.getDevice().setStatus(DeviceStatus.AS_RECEIVED);
         }
 
-        if (req.getReturnDate() != null) {
-            try {
-                rental.setReturnDate(LocalDate.parse(req.getReturnDate()));
-                validateStatusTransition(rental.getStatus(), RentalStatus.RETURNED);
-                rental.setStatus(RentalStatus.RETURNED);
-                if (rental.getDevice() != null) {
-                    rental.getDevice().setStatus(DeviceStatus.RENTAL_READY);
-                    deviceRepository.save(rental.getDevice());
-                }
-            } catch (DateTimeParseException e) {
-                throw new CustomException("INVALID_DATE_FORMAT", "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)", HttpStatus.BAD_REQUEST);
-            }
-        }
-
-        if (req.getWearYn() != null) {
-            rental.setWearYn(req.getWearYn());
-        }
         return CommonResponse.success(RentalResponse.from(rental));
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteRental(Long id) {
+    @Transactional
+    public CommonResponse<Void> deleteRental(Long id) {
         Rental rental = rentalRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("RENTAL_NOT_FOUND", "임대 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        rental.setIsDeleted(true);
-    }
 
-    // 특정 유저의 임대 이력 (IDOR 방어: 본인 또는 ADMIN/STAFF만)
-    public CommonResponse<List<RentalResponse>> getUserRentals(Long userId, CommonSearchRequest request) {
-        if (!SecurityUtil.canSeeAll() && !userId.equals(SecurityUtil.currentUserId())) {
-            throw new CustomException("FORBIDDEN", "본인 임대 이력만 조회할 수 있습니다.", HttpStatus.FORBIDDEN);
+        if (rental.getStatus() != RentalStatus.APPLIED && rental.getStatus() != RentalStatus.RETURNED) {
+            throw new CustomException("DELETE_NOT_ALLOWED", "삭제할 수 없는 상태입니다.", HttpStatus.BAD_REQUEST);
         }
-        Page<Rental> page = rentalRepository.findAllByUserIdAndIsDeletedFalse(userId, request.toPageable());
-        return CommonResponse.success(page.getContent().stream().map(RentalResponse::from).toList(), Pagination.of(page));
+
+        rental.getDevice().setStatus(DeviceStatus.RENTAL_READY);
+        rentalRepository.delete(rental);
+        return CommonResponse.success(null);
     }
 
-    // 지점별 요약 (교수님 #3: 전체 로드 대신 group by 쿼리)
+    @Transactional(readOnly = true)
+    public CommonResponse<List<RentalResponse>> getUserRentals(Long userId, CommonSearchRequest request) {
+        String keyword = normalizeKeyword(request.getSearchKeyword());
+        Pageable pageable = request.toPageable();
+
+        Page<Rental> rentalPage = rentalRepository.searchRentals(null, userId, keyword, pageable);
+
+        Pagination pagination = new Pagination();
+        pagination.setPage(request.getPage());
+        pagination.setSize(request.getSize());
+        pagination.setTotalElements(rentalPage.getTotalElements());
+        pagination.setTotalPages(rentalPage.getTotalPages());
+
+        List<RentalResponse> responses = rentalPage.stream().map(RentalResponse::from).toList();
+        return CommonResponse.success(responses, pagination);
+    }
+
     public List<RentalBranchSummaryResponse> getRentalSummaryByBranch() {
         return rentalRepository.summaryByBranch(RentalStatus.RENTING).stream()
                 .map(row -> RentalBranchSummaryResponse.builder()
@@ -139,11 +140,13 @@ public class RentalService {
                 .toList();
     }
 
+    // 💡 부활시킨 메서드
     private String normalizeKeyword(String kw) {
         return (kw == null || kw.trim().isEmpty() || "-".equals(kw)) ? null : kw.trim();
     }
 
     private RentalStatus parseStatus(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
         try {
             return RentalStatus.valueOf(s.trim().toUpperCase());
         } catch (Exception e) {
@@ -160,8 +163,7 @@ public class RentalService {
         );
         List<RentalStatus> validNext = allowed.getOrDefault(current, List.of());
         if (!validNext.contains(next)) {
-            throw new CustomException("INVALID_STATUS_TRANSITION",
-                    current + " 상태에서 " + next + " (으)로 변경할 수 없습니다.", HttpStatus.BAD_REQUEST);
+            throw new CustomException("INVALID_STATUS_TRANSITION", "상태 변경 불가", HttpStatus.BAD_REQUEST);
         }
     }
 }
