@@ -1,10 +1,14 @@
 package hanyang.RentalManagementSystem.common.config;
 
+import hanyang.RentalManagementSystem.common.entity.Branch;
 import hanyang.RentalManagementSystem.common.entity.DesignHistory;
 import hanyang.RentalManagementSystem.common.entity.User;
 import hanyang.RentalManagementSystem.common.enums.Role;
+import hanyang.RentalManagementSystem.common.repository.BranchRepository;
 import hanyang.RentalManagementSystem.common.repository.DesignHistoryRepository;
 import hanyang.RentalManagementSystem.common.repository.UserRepository;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -20,6 +24,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final DesignHistoryRepository designHistoryRepository;
+    private final BranchRepository branchRepository;
 
     @Override
     @Transactional
@@ -29,8 +34,23 @@ public class DataInitializer implements CommandLineRunner {
                     .userName("관리자").role(Role.ADMIN).email("admin@team3.com").contact("").build());
             log.info("[INIT] 관리자 계정 생성 완료 (admin / admin123)");
         }
+        seedBranchManager();
         // 라운드별로 누락된 항목만 추가 시드한다(기존 DB에 새 라운드를 반영하기 위함).
         seedDesignHistory();
+    }
+
+    /** 데모용 지점관리자 계정(없을 때만). 첫 번째 지점에 연결하여 본인 지점 스코핑을 시연. */
+    private void seedBranchManager() {
+        if (userRepository.existsByUserLoginIdAndIsDeletedFalse("manager")) return;
+        List<Branch> branches = branchRepository.findAllByIsDeletedFalse();
+        if (branches.isEmpty()) {
+            log.warn("[INIT] 지점이 없어 데모 지점관리자(manager) 시드 생략");
+            return;
+        }
+        Branch branch = branches.get(0);
+        userRepository.save(User.builder().userLoginId("manager").password(passwordEncoder.encode("manager123"))
+                .userName("지점관리자").role(Role.BRANCH_MANAGER).branch(branch).email("manager@team3.com").contact("").build());
+        log.info("[INIT] 데모 지점관리자 계정 생성 완료 (manager / manager123, 지점={})", branch.getBranchName());
     }
 
     private void seedDesignHistory() {

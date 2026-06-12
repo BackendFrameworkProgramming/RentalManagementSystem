@@ -37,9 +37,17 @@
             <div class="form-group"><label id="uPwLabel">비밀번호 *</label><input type="password" id="uPassword" placeholder="비밀번호 입력"></div>
             <div class="form-row">
                 <div class="form-group"><label>역할 *</label>
-                    <select id="uRole" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px">
+                    <select id="uRole" onchange="toggleBranchField()" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px">
                         <option value="STAFF">운영자</option>
+                        <option value="BRANCH_MANAGER">지점관리자</option>
                         <option value="ADMIN">관리자</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row" id="uBranchRow" style="display:none">
+                <div class="form-group"><label>담당 지점 *</label>
+                    <select id="uBranch" style="width:100%;padding:7px 10px;border:1px solid #cbd5e0;border-radius:3px;font-size:12px">
+                        <option value="">지점 선택</option>
                     </select>
                 </div>
             </div>
@@ -54,6 +62,20 @@
 <script th:src="@{/js/common.js}"></script>
 <script>
 let editId = null; // null=등록, 값=수정 대상 id
+let branchesLoaded = false;
+
+// 지점관리자 역할일 때 쓸 지점 목록을 1회만 로드
+async function loadBranches(){
+    if(branchesLoaded)return;
+    const r=await api('/api/branches?page=1&size=500');
+    const opts=(r.data||[]).map(b=>`<option value="${b.id}">${b.branchName}</option>`).join('');
+    document.getElementById('uBranch').innerHTML='<option value="">지점 선택</option>'+opts;
+    branchesLoaded=true;
+}
+// 역할이 지점관리자일 때만 지점 선택칸 노출
+function toggleBranchField(){
+    document.getElementById('uBranchRow').style.display=(document.getElementById('uRole').value==='BRANCH_MANAGER')?'':'none';
+}
 
 async function loadUsers(p=1){
     const sf=document.getElementById('sf').value,sk=document.getElementById('sk').value;
@@ -62,9 +84,8 @@ async function loadUsers(p=1){
     const r=await api(url);let i=(p-1)*20;
     document.getElementById('totalEl').textContent=r.pagination?.totalElements||0;
     document.getElementById('tbody').innerHTML=(r.data||[]).map(u=>{
-        const isAdmin=u.role==='ADMIN';
-        const roleLabel=isAdmin?'관리자':'운영자';
-        const badgeClass=isAdmin?'badge-AS접수':'badge-임대대기';
+        const roleMap={ADMIN:['관리자','badge-AS접수'],BRANCH_MANAGER:['지점관리자','badge-임대중'],STAFF:['운영자','badge-임대대기']};
+        const [roleLabel,badgeClass]=roleMap[u.role]||roleMap.STAFF;
         const u2=JSON.stringify(u).replace(/"/g,'&quot;');
         return `<tr>
         <td class="center">${++i}</td>
@@ -79,7 +100,7 @@ async function loadUsers(p=1){
     paginate(document.getElementById('paging'),r.pagination,'loadUsers');
 }
 
-function openCreate(){
+async function openCreate(){
     editId=null;
     document.getElementById('userDrawTitle').textContent='사용자 등록';
     document.getElementById('uPwLabel').textContent='비밀번호 *';
@@ -88,10 +109,13 @@ function openCreate(){
     document.getElementById('uLoginId').disabled=false;
     ['uName','uLoginId','uPassword','uContact','uEmail'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('uRole').value='STAFF';
+    await loadBranches();
+    document.getElementById('uBranch').value='';
+    toggleBranchField();
     openDraw('userDraw');
 }
 
-function openEdit(u){
+async function openEdit(u){
     editId=u.id;
     document.getElementById('userDrawTitle').textContent='사용자 수정';
     document.getElementById('uPwLabel').textContent='비밀번호 (변경 시에만 입력)';
@@ -101,9 +125,12 @@ function openEdit(u){
     document.getElementById('uLoginId').value=u.userLoginId||'';
     document.getElementById('uLoginId').disabled=true; // 로그인ID는 수정 불가
     document.getElementById('uPassword').value='';
-    document.getElementById('uRole').value=(u.role==='ADMIN')?'ADMIN':'STAFF';
+    document.getElementById('uRole').value=['ADMIN','BRANCH_MANAGER','STAFF'].includes(u.role)?u.role:'STAFF';
     document.getElementById('uContact').value=u.contact||'';
     document.getElementById('uEmail').value=u.email||'';
+    await loadBranches();
+    document.getElementById('uBranch').value=u.branchId||'';
+    toggleBranchField();
     openDraw('userDraw');
 }
 
@@ -114,17 +141,25 @@ async function saveUser(){
     const contact=document.getElementById('uContact').value;
     const email=document.getElementById('uEmail').value;
 
+    // 지점관리자는 담당 지점 필수, 그 외 역할은 지점 연결 해제(null)
+    let branchId=null;
+    if(role==='BRANCH_MANAGER'){
+        branchId=document.getElementById('uBranch').value;
+        if(!branchId){toast('지점관리자는 담당 지점을 선택해야 합니다.','error');return;}
+        branchId=Number(branchId);
+    }
+
     if(editId===null){
         // 등록
         const loginId=document.getElementById('uLoginId').value;
         if(!userName||!loginId||!password){toast('사용자명, 로그인ID, 비밀번호는 필수입니다.','error');return;}
-        const body={userName,userLoginId:loginId,password,role,contact,email};
+        const body={userName,userLoginId:loginId,password,role,contact,email,branchId};
         const r=await api('/api/users','POST',body);
         if(r.success){toast('사용자 등록 완료');closeDraw('userDraw');loadUsers();}else toast(r.error?.message,'error');
     }else{
         // 수정 (비번은 입력했을 때만 전송)
         if(!userName){toast('사용자명은 필수입니다.','error');return;}
-        const body={userName,role,contact,email};
+        const body={userName,role,contact,email,branchId};
         if(password)body.password=password;
         const r=await api(`/api/users/${editId}`,'PATCH',body);
         if(r.success){toast('수정 완료');closeDraw('userDraw');loadUsers();}else toast(r.error?.message,'error');

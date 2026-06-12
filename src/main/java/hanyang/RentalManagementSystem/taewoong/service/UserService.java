@@ -45,15 +45,21 @@ public class UserService {
             throw new CustomException("DUPLICATE_LOGIN_ID", "이미 사용 중인 아이디입니다.", HttpStatus.CONFLICT);
         }
         String password = req.getPassword();
+        Role role = Role.fromString(req.getRole());
+        if (role == Role.BRANCH_MANAGER && req.getBranchId() == null) {
+            throw new CustomException("INVALID_REQUEST", "지점관리자는 담당 지점이 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         User user = User.builder()
                 .userName(req.getUserName())
                 .userLoginId(req.getUserLoginId())
                 .password(password != null && !password.isBlank() ? passwordEncoder.encode(password) : null)
-                .role(Role.fromString(req.getRole()))
+                .role(role)
                 .contact(req.getContact())
                 .email(req.getEmail())
                 .build();
         applyLinks(user, req);
+        // 역할 모델 정합성: 지점관리자가 아니면 지점 연결 해제(스코핑 잔존 방지)
+        if (role != Role.BRANCH_MANAGER) user.setBranch(null);
         userRepository.save(user);
         return CommonResponse.created(UserResponse.from(user));
     }
@@ -70,6 +76,14 @@ public class UserService {
             u.setPassword(passwordEncoder.encode(req.getPassword()));
         }
         applyLinks(u, req);
+        // 역할 모델 정합성: 지점관리자는 지점 필수, 그 외 역할은 지점 연결 해제
+        if (u.getRole() == Role.BRANCH_MANAGER) {
+            if (u.getBranch() == null) {
+                throw new CustomException("INVALID_REQUEST", "지점관리자는 담당 지점이 필수입니다.", HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            u.setBranch(null);
+        }
         return CommonResponse.success(UserResponse.from(u));
     }
 
