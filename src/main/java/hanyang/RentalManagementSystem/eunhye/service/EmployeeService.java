@@ -4,6 +4,8 @@ import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.Pagination;
 import hanyang.RentalManagementSystem.common.entity.Employee;
 import hanyang.RentalManagementSystem.common.entity.Team;
+import hanyang.RentalManagementSystem.common.enums.EmploymentType;
+import hanyang.RentalManagementSystem.common.enums.WorkStatus;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
 import hanyang.RentalManagementSystem.common.repository.EmployeeRepository;
 import hanyang.RentalManagementSystem.common.repository.TeamRepository;
@@ -50,8 +52,8 @@ public class EmployeeService {
                 .empName(req.getEmpName())
                 .empNo(req.getEmpNo())
                 .jobTitle(req.getJobTitle())
-                .employmentType(req.getEmploymentType())
-                .workStatus(req.getWorkStatus())
+                .employmentType(parseEmploymentType(req.getEmploymentType()))
+                .workStatus(parseWorkStatus(req.getWorkStatus()))
                 .workStatusDate(LocalDate.now())
                 .hireDate(parseDate(req.getHireDate()))
                 .remark(req.getRemark())
@@ -75,9 +77,9 @@ public class EmployeeService {
         if (req.getEmpName() != null) employee.setEmpName(req.getEmpName());
         if (req.getEmpNo() != null) employee.setEmpNo(req.getEmpNo());
         if (req.getJobTitle() != null) employee.setJobTitle(req.getJobTitle());
-        if (req.getEmploymentType() != null) employee.setEmploymentType(req.getEmploymentType());
+        if (req.getEmploymentType() != null) employee.setEmploymentType(parseEmploymentType(req.getEmploymentType()));
         if (req.getWorkStatus() != null) {
-            employee.setWorkStatus(req.getWorkStatus());
+            employee.setWorkStatus(parseWorkStatus(req.getWorkStatus()));
             employee.setWorkStatusDate(LocalDate.now());
         }
         if (req.getHireDate() != null) employee.setHireDate(parseDate(req.getHireDate()));
@@ -91,6 +93,22 @@ public class EmployeeService {
                 .orElseThrow(() -> new CustomException("EMPLOYEE_NOT_FOUND", "직원을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         employee.setIsDeleted(true);
         return CommonResponse.success(null);
+    }
+
+    private EmploymentType parseEmploymentType(String v) {
+        try {
+            return EmploymentType.fromString(v);
+        } catch (IllegalArgumentException e) {
+            throw new CustomException("INVALID_REQUEST", e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private WorkStatus parseWorkStatus(String v) {
+        try {
+            return WorkStatus.fromString(v);
+        } catch (IllegalArgumentException e) {
+            throw new CustomException("INVALID_REQUEST", e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
     }
 
     private LocalDate parseDate(String v) {

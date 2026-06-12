@@ -25,7 +25,8 @@
             <div class="left-panel-item" onclick="toggleGroup(this)">
                 <span>▾ 경영</span>
             </div>
-            <div class="left-panel-item child" onclick="selectTeam(2, '경영', '경영지원', this)">
+            <div class="left-panel-item child"
+                 onclick="selectTeam(2, '경영', '경영지원', this)">
                 <span>ㆍ경영지원</span>
             </div>
             <div class="left-panel-item child" onclick="selectTeam(3, '경영', '경영관리', this)">
@@ -175,19 +176,16 @@
                     <div class="form-group">
                         <label>근무형태</label>
                         <select id="employmentType">
-                            <option value="정규직">정규직</option>
-                            <option value="계약직">계약직</option>
-                            <option value="일용직">일용직</option>
+                            <option value="FULL_TIME">정규직</option>
+                            <option value="CONTRACT">계약직</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label>근무상태</label>
                         <select id="workStatus">
-                            <option value="근무">근무</option>
-                            <option value="휴직">휴직</option>
-                            <option value="병가">병가</option>
-                            <option value="퇴사">퇴사</option>
+                            <option value="WORKING">근무</option>
+                            <option value="LEAVE">휴직</option>
                         </select>
                     </div>
 
@@ -222,6 +220,12 @@
     let employeeList = [];
     let curPage = 1;
     const curSize = 10;
+
+    // 백엔드 enum 코드 → 화면 표시 라벨 (EmploymentType / WorkStatus)
+    const EMPLOYMENT_LABELS = { FULL_TIME: '정규직', CONTRACT: '계약직' };
+    const WORK_STATUS_LABELS = { WORKING: '근무', LEAVE: '휴직' };
+    const empLabel = v => EMPLOYMENT_LABELS[v] || v || '-';
+    const workLabel = v => WORK_STATUS_LABELS[v] || v || '-';
 
     async function loadEmployees(page) {
         curPage = page || 1;
@@ -259,13 +263,13 @@
                 </td>
                 <td class="center">${(curPage - 1) * curSize + i + 1}</td>
                 <td class="center">이력</td>
-                <td>${e.employmentType || '-'}</td>
+                <td>${empLabel(e.employmentType)}</td>
                 <td>${e.empName || '-'}</td>
                 <td>${e.empNo || '-'}</td>
                 <td>${currentDepartmentName || e.departmentId || '-'}</td>
                 <td>${currentTeamName || e.teamId || '-'}</td>
                 <td>${e.jobTitle || '-'}</td>
-                <td>${e.workStatus || '-'}</td>
+                <td>${workLabel(e.workStatus)}</td>
                 <td>${e.workStatusDate || '-'}</td>
                 <td>${e.hireDate || '-'}</td>
                 <td>${e.remark || ''}</td>
@@ -285,8 +289,8 @@
         document.getElementById('empName').value = employee.empName || '';
         document.getElementById('empNo').value = employee.empNo || '';
         document.getElementById('jobTitle').value = employee.jobTitle || '';
-        document.getElementById('employmentType').value = employee.employmentType || '정규직';
-        document.getElementById('workStatus').value = employee.workStatus || '근무';
+        document.getElementById('employmentType').value = employee.employmentType || 'FULL_TIME';
+        document.getElementById('workStatus').value = employee.workStatus || 'WORKING';
         document.getElementById('hireDate').value = employee.hireDate || '';
         document.getElementById('remark').value = employee.remark || '';
     }
@@ -300,8 +304,8 @@
         document.getElementById('empName').value = '';
         document.getElementById('empNo').value = '';
         document.getElementById('jobTitle').value = '';
-        document.getElementById('employmentType').value = '정규직';
-        document.getElementById('workStatus').value = '근무';
+        document.getElementById('employmentType').value = 'FULL_TIME';
+        document.getElementById('workStatus').value = 'WORKING';
         document.getElementById('hireDate').value = '';
         document.getElementById('remark').value = '';
     }
@@ -382,10 +386,13 @@
                     String(e.empName || '').toLowerCase().includes(keyword) ||
                     String(e.empNo || '').toLowerCase().includes(keyword) ||
                     String(e.jobTitle || '').toLowerCase().includes(keyword) ||
-                    String(e.employmentType || '').toLowerCase().includes(keyword) ||
-                    String(e.workStatus || '').toLowerCase().includes(keyword)
+                    empLabel(e.employmentType).toLowerCase().includes(keyword) ||
+                    workLabel(e.workStatus).toLowerCase().includes(keyword)
                 );
             }
+
+            if (field === 'employmentType') return empLabel(e.employmentType).toLowerCase().includes(keyword);
+            if (field === 'workStatus') return workLabel(e.workStatus).toLowerCase().includes(keyword);
 
             return String(e[field] || '').toLowerCase().includes(keyword);
         });
