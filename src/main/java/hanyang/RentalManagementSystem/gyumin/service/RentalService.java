@@ -130,6 +130,8 @@ public class RentalService {
     }
 
     public List<RentalBranchSummaryResponse> getRentalSummaryByBranch() {
+        // 데이터 스코핑: 지점관리자는 좌측 패널에 본인 지점만
+        Long scopeBranchId = SecurityUtil.isBranchManager() ? SecurityUtil.currentBranchId() : null;
         return rentalRepository.summaryByBranch(RentalStatus.RENTING).stream()
                 .map(row -> RentalBranchSummaryResponse.builder()
                         .branchId(((Number) row[0]).longValue())
@@ -137,6 +139,7 @@ public class RentalService {
                         .totalCount(((Number) row[2]).longValue())
                         .rentingCount(((Number) row[3]).longValue())
                         .build())
+                .filter(r -> scopeBranchId == null || scopeBranchId.equals(r.getBranchId()))
                 .toList();
     }
 

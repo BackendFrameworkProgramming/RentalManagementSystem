@@ -212,12 +212,15 @@ public class DeviceService {
 
     // 1-11 집계 (교수님 #3: 전체 엔티티 로드 대신 count/group-by 쿼리)
     public CommonResponse<DeviceSummaryResponse> summaryByBranch() {
+        // 데이터 스코핑: 지점관리자는 좌측 패널에 본인 지점만
+        Long scopeBranchId = SecurityUtil.isBranchManager() ? SecurityUtil.currentBranchId() : null;
         List<DeviceSummaryResponse.BranchCount> branches = deviceRepository.countGroupByBranch().stream()
                 .map(row -> DeviceSummaryResponse.BranchCount.builder()
                         .branchId(((Number) row[0]).longValue())
                         .branchName((String) row[1])
                         .count(((Number) row[2]).longValue())
                         .build())
+                .filter(bc -> scopeBranchId == null || scopeBranchId.equals(bc.getBranchId()))
                 .toList();
         DeviceSummaryResponse summary = DeviceSummaryResponse.builder()
                 .branches(branches)
