@@ -14,4 +14,6 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     List<Team> findAllByDepartmentIdAndIsDeletedFalse(Long departmentId);
     Optional<Team> findByIdAndIsDeletedFalse(Long id);
     List<Team> findAllByIsDeletedFalse();
+    // 교수님 #3: 부서 삭제 시 하위 팀 존재 여부를 exists 쿼리로 확인 (findAll 전체조회 제거)
+    boolean existsByDepartmentIdAndIsDeletedFalse(Long departmentId);
 }

@@ -84,10 +84,8 @@ public class DepartmentService {
     @Transactional
     public void deleteDepartment(Long id) {
         Department d = getDepartment(id);
-        // TODO(minseok): 교수님 피드백 #3 — findAll().isEmpty() 대신 count/exists 쿼리로 교체할 것.
-        //   TeamRepository에 existsByDepartmentIdAndIsDeletedFalse(Long) 추가 후 아래 한 줄을 교체.
-        //   (이전엔 common/ 수정 금지라 못 했지만, 이번에 PM이 공통 구조를 정리하며 열어둠)
-        if (!teamRepository.findAllByDepartmentIdAndIsDeletedFalse(id).isEmpty()) {
+        // 교수님 #3: 전체조회 대신 exists 쿼리로 하위 팀 존재 여부 확인
+        if (teamRepository.existsByDepartmentIdAndIsDeletedFalse(id)) {
             throw new CustomException("DEPARTMENT_HAS_TEAMS", "하위 팀이 있어 삭제할 수 없습니다.");
         }
         saveDeptHistory(d, "DELETE", toJson(d), null, null);
