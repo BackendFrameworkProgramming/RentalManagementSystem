@@ -24,6 +24,9 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
     Optional<Device> findByIdAndIsDeletedFalse(Long id);
 
     List<Device> findAllByBranchIdAndIsDeletedFalse(Long branchId);
+    // 데이터 스코핑: 지점관리자 본인 지점 디바이스만 (N+1 방어 위해 @EntityGraph)
+    @EntityGraph(attributePaths = {"modelVersion", "modelVersion.model", "branch"})
+    Page<Device> findAllByBranchIdAndIsDeletedFalse(Long branchId, Pageable pageable);
     List<Device> findAllByBranchIsNullAndIsDeletedFalse();
     List<Device> findAllByIsDeletedFalse();
     List<Device> findAllByStatusAndIsDeletedFalse(DeviceStatus status);

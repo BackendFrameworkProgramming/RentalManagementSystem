@@ -2,6 +2,7 @@ package hanyang.RentalManagementSystem.minseok.service;
 
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
+import hanyang.RentalManagementSystem.common.config.SecurityUtil;
 import hanyang.RentalManagementSystem.common.dto.Pagination;
 import hanyang.RentalManagementSystem.common.entity.Branch;
 import hanyang.RentalManagementSystem.common.entity.BranchManager;
@@ -31,7 +32,11 @@ public class BranchService {
 
     // 5-1 지점 목록 (주담당자 정보 포함, 교수님 #4: DTO)
     public CommonResponse<List<BranchResponse>> findAll(CommonSearchRequest request) {
-        Page<Branch> page = branchRepository.findAllByIsDeletedFalse(request.toPageable());
+        // 데이터 스코핑: 지점관리자는 본인 지점만, ADMIN/STAFF는 전체
+        Long scopeBranchId = SecurityUtil.isBranchManager() ? SecurityUtil.currentBranchId() : null;
+        Page<Branch> page = (scopeBranchId != null)
+                ? branchRepository.findByIdAndIsDeletedFalse(scopeBranchId, request.toPageable())
+                : branchRepository.findAllByIsDeletedFalse(request.toPageable());
         List<BranchResponse> data = page.getContent().stream().map(b -> {
             BranchResponse r = BranchResponse.from(b);
             BranchManager main = branchManagerRepository.findAllByBranchIdAndIsDeletedFalse(b.getId()).stream()

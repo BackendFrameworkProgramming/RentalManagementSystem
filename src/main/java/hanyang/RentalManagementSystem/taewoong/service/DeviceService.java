@@ -3,6 +3,7 @@ package hanyang.RentalManagementSystem.taewoong.service;
 import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
 import hanyang.RentalManagementSystem.common.dto.ErrorInfo;
+import hanyang.RentalManagementSystem.common.config.SecurityUtil;
 import hanyang.RentalManagementSystem.common.dto.Pagination;
 import hanyang.RentalManagementSystem.common.entity.Branch;
 import hanyang.RentalManagementSystem.common.entity.Device;
@@ -43,9 +44,16 @@ public class DeviceService {
 
     // 1-1 목록 (교수님 #1: 페이징 전에 쿼리 단계에서 isDeleted 필터 / @EntityGraph N+1 방어 / #4: DTO)
     public CommonResponse<List<DeviceResponse>> findAll(CommonSearchRequest request) {
-        Page<Device> page = Boolean.TRUE.equals(request.getIncludeDeleted())
-                ? deviceRepository.findAll(request.toPageable())
-                : deviceRepository.findAllByIsDeletedFalse(request.toPageable());
+        // 데이터 스코핑: 지점관리자는 본인 지점 디바이스만, ADMIN/STAFF는 전체
+        Long scopeBranchId = SecurityUtil.isBranchManager() ? SecurityUtil.currentBranchId() : null;
+        Page<Device> page;
+        if (scopeBranchId != null) {
+            page = deviceRepository.findAllByBranchIdAndIsDeletedFalse(scopeBranchId, request.toPageable());
+        } else if (Boolean.TRUE.equals(request.getIncludeDeleted())) {
+            page = deviceRepository.findAll(request.toPageable());
+        } else {
+            page = deviceRepository.findAllByIsDeletedFalse(request.toPageable());
+        }
         List<DeviceResponse> data = page.getContent().stream().map(DeviceResponse::from).toList();
         return CommonResponse.success(data, Pagination.of(page));
     }
