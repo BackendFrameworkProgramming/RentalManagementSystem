@@ -6,6 +6,7 @@ import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
 import hanyang.RentalManagementSystem.common.dto.Pagination;
 import hanyang.RentalManagementSystem.common.entity.AsRecord;
 import hanyang.RentalManagementSystem.common.entity.Device;
+import hanyang.RentalManagementSystem.common.enums.AsStatus;
 import hanyang.RentalManagementSystem.common.enums.DeviceStatus;
 import hanyang.RentalManagementSystem.common.exception.CustomException;
 import hanyang.RentalManagementSystem.common.repository.AsRecordRepository;
@@ -18,6 +19,7 @@ import hanyang.RentalManagementSystem.gyumin.dto.AsRecordResponse;
 import hanyang.RentalManagementSystem.gyumin.dto.AsRecordUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +30,6 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true, rollbackFor = Exception.class)
 public class AsRecordService {
 
     private final AsRecordRepository asRecordRepository;
@@ -36,85 +37,105 @@ public class AsRecordService {
     private final RentalRepository rentalRepository;
     private final BranchRepository branchRepository;
 
-    // A/S 목록 (교수님 #1: 청크 스캔 제거 → 쿼리 필터/페이징, #4: DTO)
-    // 데이터 스코핑: 일반 USER=본인(rental.user) AS만, BRANCH_MANAGER=본인 지점만, ADMIN/STAFF=전체
+    @Transactional(readOnly = true)
     public CommonResponse<List<AsRecordResponse>> getAsRecords(CommonSearchRequest request) {
-        Long branchId = null;
-        Long userId = null;
-        if (SecurityUtil.isBranchManager()) {
-            branchId = SecurityUtil.currentBranchId();
-        } else if (SecurityUtil.isUser()) {
-            userId = SecurityUtil.currentUserId();
-        }
-        String kw = normalizeKeyword(request.getSearchKeyword());
-        Page<AsRecord> page = asRecordRepository.searchAsRecords(branchId, userId, kw, request.toPageable());
-        return CommonResponse.success(page.getContent().stream().map(AsRecordResponse::from).toList(), Pagination.of(page));
+        Long targetBranchId = SecurityUtil.isAdmin() ? null : SecurityUtil.currentBranchId();
+        String keyword = normalizeKeyword(request.getSearchKeyword());
+        Pageable pageable = request.toPageable();
+
+        Page<AsRecord> recordPage = asRecordRepository.searchAsRecords(targetBranchId, null, keyword, pageable);
+
+        Pagination pagination = new Pagination();
+        pagination.setPage(request.getPage());
+        pagination.setSize(request.getSize());
+        pagination.setTotalElements(recordPage.getTotalElements());
+        pagination.setTotalPages(recordPage.getTotalPages());
+
+        List<AsRecordResponse> responses = recordPage.stream().map(AsRecordResponse::from).toList();
+        return CommonResponse.success(responses, pagination);
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public CommonResponse<AsRecordResponse> createAsRecord(AsRecordCreateRequest req) {
-        if (req.getDeviceId() == null) {
-            throw new CustomException("INVALID_REQUEST", "deviceId는 필수입니다.", HttpStatus.BAD_REQUEST);
-        }
-        Device device = deviceRepository.findById(req.getDeviceId())
-                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "기기를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-
-        AsRecord asRecord = AsRecord.builder()
-                .device(device)
-                .rental(req.getRentalId() != null ? rentalRepository.findById(req.getRentalId()).orElse(null) : null)
-                .branch(req.getBranchId() != null ? branchRepository.findById(req.getBranchId()).orElse(null) : null)
-                .receiptContent(req.getAsDescription() != null ? req.getAsDescription() : "")
-                .status("AS_RECEIVED")
-                .receiptDate(LocalDate.now())
-                .isDeleted(false)
-                .build();
-
-        device.setStatus(DeviceStatus.AS_RECEIVED);
-        deviceRepository.save(device);
-        asRecordRepository.save(asRecord);
-        return CommonResponse.created(AsRecordResponse.from(asRecord));
-    }
-
-    @Transactional(rollbackFor = Exception.class)
-    public CommonResponse<AsRecordResponse> updateAsRecord(Long id, AsRecordUpdateRequest req) {
+    // 💡 상세 모달창용 서비스 로직 추가
+    @Transactional(readOnly = true)
+    public CommonResponse<AsRecordResponse> getAsRecord(Long id) {
         AsRecord asRecord = asRecordRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new CustomException("AS_NOT_FOUND", "A/S 내역을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-
-        if (req.getStatus() != null) {
-            String newStatus = req.getStatus();
-            validateStatusTransition(asRecord.getStatus(), newStatus);
-            asRecord.setStatus(newStatus);
-
-            if ("AS_COMPLETED".equals(newStatus)) {
-                asRecord.setCompleteDate(LocalDate.now());
-                if (asRecord.getDevice() != null) {
-                    asRecord.getDevice().setStatus(DeviceStatus.RENTAL_READY);
-                    deviceRepository.save(asRecord.getDevice());
-                }
-            }
-        }
+                .orElseThrow(() -> new CustomException("AS_RECORD_NOT_FOUND", "A/S 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         return CommonResponse.success(AsRecordResponse.from(asRecord));
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteAsRecord(Long id) {
+    @Transactional
+    public CommonResponse<AsRecordResponse> createAsRecord(AsRecordCreateRequest request) {
+        Device device = deviceRepository.findById(request.getDeviceId())
+                .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+
+        AsRecord asRecord = AsRecord.builder()
+                .device(device)
+                .rental(request.getRentalId() != null ? rentalRepository.getReferenceById(request.getRentalId()) : null)
+                .branch(branchRepository.getReferenceById(request.getBranchId()))
+                .receiptDate(LocalDate.now())
+                .receiptContent(request.getAsDescription())
+                .build();
+
+        asRecord.setStatusEnum(AsStatus.AS_RECEIVED);
+        device.setStatus(DeviceStatus.AS_RECEIVED);
+        asRecordRepository.save(asRecord);
+
+        return CommonResponse.created(AsRecordResponse.from(asRecord));
+    }
+
+    @Transactional
+    public CommonResponse<AsRecordResponse> updateAsRecord(Long id, AsRecordUpdateRequest request) {
         AsRecord asRecord = asRecordRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new CustomException("AS_NOT_FOUND", "A/S 내역을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-        asRecord.setIsDeleted(true);
-    }
+                .orElseThrow(() -> new CustomException("AS_RECORD_NOT_FOUND", "A/S 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
-    // 특정 유저의 A/S 이력 (IDOR 방어: 본인 또는 ADMIN/STAFF만)
-    public CommonResponse<List<AsRecordResponse>> getUserAsRecords(Long userId, CommonSearchRequest request) {
-        if (!SecurityUtil.canSeeAll() && !userId.equals(SecurityUtil.currentUserId())) {
-            throw new CustomException("FORBIDDEN", "본인 A/S 이력만 조회할 수 있습니다.", HttpStatus.FORBIDDEN);
+        AsStatus nextStatus = AsStatus.fromString(request.getStatus());
+        validateStatusTransition(asRecord.getStatusEnum(), nextStatus);
+
+        asRecord.setStatusEnum(nextStatus);
+
+        if (nextStatus == AsStatus.AS_COMPLETED) {
+            asRecord.setCompleteDate(LocalDate.now());
+            asRecord.getDevice().setStatus(DeviceStatus.RENTAL_READY);
+        } else if (nextStatus == AsStatus.AS_PROGRESS) {
+            asRecord.setConfirmDate(LocalDate.now());
         }
-        Page<AsRecord> page = asRecordRepository.searchAsRecords(null, userId, null, request.toPageable());
-        return CommonResponse.success(page.getContent().stream().map(AsRecordResponse::from).toList(), Pagination.of(page));
+
+        return CommonResponse.success(AsRecordResponse.from(asRecord));
     }
 
-    // 지점별 요약 (교수님 #3: group by 쿼리)
-    public List<AsBranchSummaryResponse> getAsSummaryByBranch() {
-        return asRecordRepository.summaryByBranch().stream()
+    @Transactional
+    public CommonResponse<Void> deleteAsRecord(Long id) {
+        AsRecord asRecord = asRecordRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new CustomException("AS_RECORD_NOT_FOUND", "A/S 기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+
+        if (asRecord.getStatusEnum() != AsStatus.AS_RECEIVED) {
+            throw new CustomException("DELETE_NOT_ALLOWED", "접수 상태에서만 삭제할 수 있습니다.", HttpStatus.BAD_REQUEST);
+        }
+
+        asRecord.getDevice().setStatus(DeviceStatus.RENTAL_READY);
+        asRecordRepository.delete(asRecord);
+        return CommonResponse.success(null);
+    }
+
+    @Transactional(readOnly = true)
+    public CommonResponse<List<AsRecordResponse>> getUserAsRecords(Long userId, CommonSearchRequest request) {
+        String keyword = normalizeKeyword(request.getSearchKeyword());
+        Pageable pageable = request.toPageable();
+
+        Page<AsRecord> recordPage = asRecordRepository.searchAsRecords(null, userId, keyword, pageable);
+
+        Pagination pagination = new Pagination();
+        pagination.setPage(request.getPage());
+        pagination.setSize(request.getSize());
+        pagination.setTotalElements(recordPage.getTotalElements());
+        pagination.setTotalPages(recordPage.getTotalPages());
+
+        List<AsRecordResponse> responses = recordPage.stream().map(AsRecordResponse::from).toList();
+        return CommonResponse.success(responses, pagination);
+    }
+
+    public CommonResponse<List<AsBranchSummaryResponse>> getAsSummaryByBranch() {
+        List<AsBranchSummaryResponse> list = asRecordRepository.summaryByBranch().stream()
                 .map(row -> AsBranchSummaryResponse.builder()
                         .branchId(((Number) row[0]).longValue())
                         .branchName((String) row[1])
@@ -122,22 +143,21 @@ public class AsRecordService {
                         .processingCount(((Number) row[3]).longValue())
                         .build())
                 .toList();
+        return CommonResponse.success(list);
     }
 
     private String normalizeKeyword(String kw) {
         return (kw == null || kw.trim().isEmpty() || "-".equals(kw)) ? null : kw.trim();
     }
 
-    // TODO(gyumin): 교수님 피드백 #5 — 아래 String status를 AsStatus enum으로 전환.
-    //   참고: gyumin/service/RentalService.validateStatusTransition(RentalStatus) 방식 그대로.
-    private void validateStatusTransition(String current, String next) {
-        Map<String, List<String>> allowed = Map.of(
-                "AS_RECEIVED", List.of("AS_PROGRESS", "AS_COMPLETED"),
-                "AS_PROGRESS", List.of("AS_COMPLETED")
+    private void validateStatusTransition(AsStatus current, AsStatus next) {
+        Map<AsStatus, List<AsStatus>> allowed = Map.of(
+                AsStatus.AS_RECEIVED, List.of(AsStatus.AS_PROGRESS, AsStatus.AS_COMPLETED),
+                AsStatus.AS_PROGRESS, List.of(AsStatus.AS_COMPLETED)
         );
-        List<String> validNext = allowed.getOrDefault(current, List.of());
+        List<AsStatus> validNext = allowed.getOrDefault(current, List.of());
         if (!validNext.contains(next)) {
-            throw new CustomException("INVALID_STATUS_TRANSITION", current + " 에서 " + next + "(으)로 변경할 수 없습니다.", HttpStatus.BAD_REQUEST);
+            throw new CustomException("INVALID_STATUS", "잘못된 상태 변경입니다.", HttpStatus.BAD_REQUEST);
         }
     }
 }

@@ -97,7 +97,6 @@
 <script>
     let curPage = 1, curBranch = null, curSize = 20, branches = [];
 
-    // 🛡️ XSS 방어용 이스케이프 함수 (필수)
     function escapeHtml(unsafe) {
         if (unsafe == null || unsafe === '') return '-';
         return String(unsafe).replace(/[&<>"']/g, function(m) {
@@ -128,7 +127,7 @@
         branches.forEach(b => {
             totalAll += b.totalCount;
             totalRenting += b.rentingCount;
-            html += `<div class="left-panel-item" onclick="selectBranch(${b.branchId},'${escapeHtml(b.branchName).replace(/'/g, "\\'")}')">
+            html += `<div class="left-panel-item" onclick="selectBranch(${b.branchId}, this.getAttribute('data-name'))" data-name="${escapeHtml(b.branchName)}">
                         <span>${escapeHtml(b.branchName)}</span>
                         <span class="count">${b.totalCount} / <span style="color:blue">${b.rentingCount}</span></span>
                      </div>`;
@@ -163,6 +162,7 @@
         curPage = page || 1;
         curSize = Number(document.getElementById('pageSize').value);
 
+        // 검색어 중복 세팅 제거 (안전한 파라미터 구성)
         const p = new URLSearchParams({
             searchField: document.getElementById('sf').value,
             searchKeyword: document.getElementById('sk').value,
@@ -171,10 +171,6 @@
             page: curPage,
             size: curSize
         });
-
-        if (document.getElementById('sf').value && document.getElementById('sk').value) {
-            p.set('searchKeyword', document.getElementById('sk').value);
-        }
 
         const res = await api('/api/rentals?' + p);
 
@@ -195,7 +191,7 @@
                 <td class="center">${++i}</td>
                 <td class="center">${formatStatus(d.status)}</td>
                 <td>${escapeHtml(d.branchName)}</td>
-                <td class="center"><a href="#" onclick="showHistory(${d.userId}, '${escapeHtml(d.userName).replace(/'/g, "\\'")}'); return false;" style="font-weight:bold; color:#0056b3;">${escapeHtml(d.userName)}</a></td>
+                <td class="center"><a href="#" onclick="showHistory(${d.userId}, this.getAttribute('data-name')); return false;" data-name="${escapeHtml(d.userName)}" style="font-weight:bold; color:#0056b3;">${escapeHtml(d.userName)}</a></td>
                 <td class="center">${escapeHtml(d.userId)}</td>
                 <td class="center">${escapeHtml(d.applyDate)}</td>
                 <td class="center">${escapeHtml(d.expectedStartDate)}</td>
@@ -213,7 +209,6 @@
 
     async function showHistory(userId, userName) {
         document.getElementById('historyDrawTitle').textContent = `${userName} > 임대이력`;
-        // 💡 백엔드 컨트롤러와 동일하게 경로 수정 완료 (/api/rentals/users/{userId})
         const res = await api(`/api/rentals/users/${userId}?size=100`);
         const rows = res.data || [];
 
