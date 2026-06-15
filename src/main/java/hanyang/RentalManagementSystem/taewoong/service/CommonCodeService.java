@@ -41,6 +41,12 @@ public class CommonCodeService {
 
     @Transactional
     public CommonResponse<CodeGroupResponse> createGroup(CodeGroupUpsertRequest req) {
+        if (req.getGroupCode() == null || req.getGroupCode().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "그룹코드는 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (req.getGroupName() == null || req.getGroupName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "그룹명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         CodeGroup group = CodeGroup.builder()
                 .groupCode(req.getGroupCode())
                 .groupName(req.getGroupName())
@@ -78,6 +84,12 @@ public class CommonCodeService {
 
     @Transactional
     public CommonResponse<CodeDetailResponse> createDetail(Long groupId, CodeDetailUpsertRequest req) {
+        if (req.getCodeValue() == null || req.getCodeValue().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "코드값은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (req.getCodeName() == null || req.getCodeName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "코드명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         CodeGroup group = groupRepo.findById(groupId)
                 .orElseThrow(() -> new CustomException("CODE_GROUP_NOT_FOUND", "코드그룹을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         CodeDetail detail = CodeDetail.builder()

@@ -65,7 +65,7 @@ public class AsRecordService {
 
     @Transactional
     public CommonResponse<AsRecordResponse> createAsRecord(AsRecordCreateRequest request) {
-        Device device = deviceRepository.findById(request.getDeviceId())
+        Device device = deviceRepository.findByIdAndIsDeletedFalse(request.getDeviceId())
                 .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
         AsRecord asRecord = AsRecord.builder()
@@ -134,6 +134,7 @@ public class AsRecordService {
         return CommonResponse.success(responses, pagination);
     }
 
+    @Transactional(readOnly = true)
     public CommonResponse<List<AsBranchSummaryResponse>> getAsSummaryByBranch() {
         // 데이터 스코핑: 지점관리자는 좌측 패널에 본인 지점만
         Long scopeBranchId = SecurityUtil.isBranchManager() ? SecurityUtil.currentBranchId() : null;

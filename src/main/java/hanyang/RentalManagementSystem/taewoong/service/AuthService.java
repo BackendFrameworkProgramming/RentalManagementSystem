@@ -13,6 +13,7 @@ import hanyang.RentalManagementSystem.taewoong.dto.LoginRequest;
 import hanyang.RentalManagementSystem.taewoong.dto.SignupRequest;
 import hanyang.RentalManagementSystem.taewoong.dto.UserInfoResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -47,7 +48,13 @@ public class AuthService {
                 .email(req.getEmail() != null ? req.getEmail() : "")
                 .role(Role.STAFF)
                 .build();
-        userRepository.save(user);
+        // existsBy 검사와 save 사이의 race condition(교수님 ③) 방어:
+        // 유니크 제약 위반은 500이 아니라 409로 정상 처리
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException("DUPLICATE_LOGIN_ID", "이미 사용 중인 아이디입니다.", HttpStatus.CONFLICT);
+        }
 
         return generateTokens(user);
     }

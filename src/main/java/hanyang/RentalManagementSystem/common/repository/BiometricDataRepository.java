@@ -3,15 +3,25 @@ package hanyang.RentalManagementSystem.common.repository;
 import hanyang.RentalManagementSystem.common.entity.BiometricData;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BiometricDataRepository extends JpaRepository<BiometricData, Long> {
+    // 목록 N+1 방어: device → modelVersion → model, device → branch 를 함께 페치
+    @EntityGraph(attributePaths = {"device", "device.modelVersion", "device.modelVersion.model", "device.branch"})
     Page<BiometricData> findAllByIsDeletedFalse(Pageable pageable);
     List<BiometricData> findAllByDeviceIdAndIsDeletedFalse(Long deviceId);
+
+    // 소프트삭제 일관성: 삭제된 생체정보는 상세/삭제 대상에서 제외
+    Optional<BiometricData> findByIdAndIsDeletedFalse(Long id);
+
+    // MQTT 연동: 디바이스별 최신 생체정보 1건 (findAll 후 findFirst 대체)
+    Optional<BiometricData> findFirstByDeviceIdAndIsDeletedFalse(Long deviceId);
 
     /**
      * 모델명별 생체정보 건수를 DB에서 직접 집계한다.

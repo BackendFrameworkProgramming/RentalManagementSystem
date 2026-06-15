@@ -96,8 +96,7 @@ public class DrValueIntegration {
 
         // 기존 생체정보 있으면 업데이트, 없으면 신규 생성
         Optional<BiometricData> existing = biometricDataRepository
-                .findAllByDeviceIdAndIsDeletedFalse(device.getId())
-                .stream().findFirst();
+                .findFirstByDeviceIdAndIsDeletedFalse(device.getId());
 
         BiometricData bio;
         if (existing.isPresent()) {
@@ -136,8 +135,7 @@ public class DrValueIntegration {
 
         // 해당 디바이스의 생체정보 조회 (없으면 생성)
         BiometricData bio = biometricDataRepository
-                .findAllByDeviceIdAndIsDeletedFalse(device.getId())
-                .stream().findFirst()
+                .findFirstByDeviceIdAndIsDeletedFalse(device.getId())
                 .orElseGet(() -> {
                     BiometricData newBio = new BiometricData();
                     newBio.setDevice(device);

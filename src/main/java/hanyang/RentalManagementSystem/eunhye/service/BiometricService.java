@@ -33,7 +33,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,16 +49,34 @@ public class BiometricService {
 
     @Transactional(readOnly = true)
     public CommonResponse<BiometricListResponse> getBiometricDataList(int page, int size) {
+        // @EntityGraph로 device 체인을 함께 페치(N+1 방어), 응급기록은 한 번에 묶음조회 후 최신건 매핑
         Page<BiometricData> biometricPage = biometricDataRepository.findAllByIsDeletedFalse(PageRequest.of(page - 1, size));
+        List<BiometricData> content = biometricPage.getContent();
+        Map<Long, EmergencyRecord> latestByBio = latestEmergencyByBiometricId(
+                content.stream().map(BiometricData::getId).toList());
+
         BiometricListResponse data = BiometricListResponse.builder()
-                .biometricData(biometricPage.getContent().stream().map(this::toBiometricResponse).toList())
+                .biometricData(content.stream()
+                        .map(bd -> toBiometricResponse(bd, latestByBio.get(bd.getId())))
+                        .toList())
                 .build();
         return CommonResponse.success(data, Pagination.of(biometricPage));
     }
 
+    /** 여러 생체정보의 응급기록을 한 번에 조회해 biometricDataId별 최신 1건으로 매핑(목록 3N+1 제거). */
+    private Map<Long, EmergencyRecord> latestEmergencyByBiometricId(List<Long> biometricIds) {
+        if (biometricIds.isEmpty()) return Map.of();
+        return emergencyRecordRepository.findAllByBiometricDataIdIn(biometricIds).stream()
+                .filter(e -> e.getEmergencyRecordTime() != null)
+                .collect(Collectors.toMap(
+                        e -> e.getBiometricData().getId(),
+                        e -> e,
+                        (a, b) -> a.getEmergencyRecordTime().isAfter(b.getEmergencyRecordTime()) ? a : b));
+    }
+
     @Transactional(readOnly = true)
     public CommonResponse<BiometricDetailResponse> getBiometricDataDetail(Long id) {
-        BiometricData biometricData = biometricDataRepository.findById(id)
+        BiometricData biometricData = biometricDataRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("BIOMETRIC_NOT_FOUND", "생체정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         BiometricDetailResponse data = BiometricDetailResponse.builder()
                 .biometricData(toBiometricResponse(biometricData))
@@ -70,7 +90,10 @@ public class BiometricService {
         if (req.getDeviceId() == null) {
             throw new CustomException("INVALID_REQUEST", "deviceId는 필수입니다.", HttpStatus.BAD_REQUEST);
         }
-        Device device = deviceRepository.findById(req.getDeviceId())
+        if (req.getUserName() == null || req.getUserName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "사용자명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        Device device = deviceRepository.findByIdAndIsDeletedFalse(req.getDeviceId())
                 .orElseThrow(() -> new CustomException("DEVICE_NOT_FOUND", "디바이스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         Rental rental = rentalRepository.findByDeviceIdAndStatusAndIsDeletedFalse(req.getDeviceId(), RentalStatus.RENTING).orElse(null);
 
@@ -94,7 +117,7 @@ public class BiometricService {
     }
 
     public CommonResponse<Void> deleteBiometricData(Long id) {
-        BiometricData biometricData = biometricDataRepository.findById(id)
+        BiometricData biometricData = biometricDataRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("BIOMETRIC_NOT_FOUND", "생체정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         biometricData.setIsDeleted(true);
         return CommonResponse.success(null);
@@ -102,7 +125,8 @@ public class BiometricService {
 
     @Transactional(readOnly = true)
     public CommonResponse<EmergencyListResponse> getEmergencyRecords(int page, int size) {
-        Page<EmergencyRecord> emergencyPage = emergencyRecordRepository.findAll(PageRequest.of(page - 1, size));
+        // 최신순 정렬 + 생체정보 함께 페치(N+1 방어)
+        Page<EmergencyRecord> emergencyPage = emergencyRecordRepository.findAllByOrderByEmergencyRecordTimeDesc(PageRequest.of(page - 1, size));
         EmergencyListResponse data = EmergencyListResponse.builder()
                 .emergencyRecords(emergencyPage.getContent().stream().map(EmergencyResponse::from).toList())
                 .build();
@@ -113,7 +137,7 @@ public class BiometricService {
         if (req.getBiometricDataId() == null) {
             throw new CustomException("INVALID_REQUEST", "biometricDataId는 필수입니다.", HttpStatus.BAD_REQUEST);
         }
-        BiometricData biometricData = biometricDataRepository.findById(req.getBiometricDataId())
+        BiometricData biometricData = biometricDataRepository.findByIdAndIsDeletedFalse(req.getBiometricDataId())
                 .orElseThrow(() -> new CustomException("BIOMETRIC_NOT_FOUND", "생체정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         EmergencyRecord emergencyRecord = EmergencyRecord.builder()
                 .biometricData(biometricData)
@@ -146,14 +170,18 @@ public class BiometricService {
         return CommonResponse.success(BiometricModelSummaryResponse.builder().summary(summary).build());
     }
 
-    /** 생체정보 DTO 빌드 (최신 응급기록으로 emergencyYn 계산). */
+    /** 생체정보 DTO 빌드 (단건 경로): 최신 응급기록을 즉시 조회. */
     private BiometricResponse toBiometricResponse(BiometricData bd) {
-        Device device = bd.getDevice();
         EmergencyRecord latest = emergencyRecordRepository.findAllByBiometricDataId(bd.getId()).stream()
                 .filter(e -> e.getEmergencyRecordTime() != null)
                 .max(Comparator.comparing(EmergencyRecord::getEmergencyRecordTime))
                 .orElse(null);
+        return toBiometricResponse(bd, latest);
+    }
 
+    /** 생체정보 DTO 빌드: 최신 응급기록(latest)으로 emergencyYn 계산. 목록 경로는 묶음조회한 latest를 주입. */
+    private BiometricResponse toBiometricResponse(BiometricData bd, EmergencyRecord latest) {
+        Device device = bd.getDevice();
         String modelName = (device != null && device.getModelVersion() != null && device.getModelVersion().getModel() != null)
                 ? device.getModelVersion().getModel().getModelName() : "-";
         String branchName = (device != null && device.getBranch() != null && device.getBranch().getBranchName() != null)

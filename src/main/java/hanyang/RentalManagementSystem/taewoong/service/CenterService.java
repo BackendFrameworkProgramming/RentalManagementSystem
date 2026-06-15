@@ -16,13 +16,13 @@ public class CenterService {
     private final CenterRepository centerRepository;
 
     public CommonResponse<CenterResponse> get() {
-        Center c = centerRepository.findAll().stream().findFirst().orElse(null);
+        Center c = centerRepository.findTopByOrderByIdAsc().orElse(null);
         return CommonResponse.success(c == null ? CenterResponse.builder().build() : CenterResponse.from(c));
     }
 
     @Transactional
     public CommonResponse<CenterResponse> save(CenterUpsertRequest req) {
-        Center center = centerRepository.findAll().stream().findFirst().orElse(new Center());
+        Center center = centerRepository.findTopByOrderByIdAsc().orElseGet(Center::new);
         if (req.getCenterName() != null) center.setCenterName(req.getCenterName());
         if (req.getCenterNameAbbr() != null) center.setCenterNameAbbr(req.getCenterNameAbbr());
         if (req.getBizRegNo() != null) center.setBizRegNo(req.getBizRegNo());

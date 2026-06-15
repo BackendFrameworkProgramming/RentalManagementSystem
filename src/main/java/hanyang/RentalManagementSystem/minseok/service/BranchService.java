@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,11 +39,18 @@ public class BranchService {
         Page<Branch> page = (scopeBranchId != null)
                 ? branchRepository.findByIdAndIsDeletedFalse(scopeBranchId, request.toPageable())
                 : branchRepository.findAllByIsDeletedFalse(request.toPageable());
-        List<BranchResponse> data = page.getContent().stream().map(b -> {
+
+        // N+1 제거: 페이지의 지점ID들로 담당자를 한 번에 조회 후 branchId별 '주' 담당자로 그룹핑
+        List<Branch> branches = page.getContent();
+        List<Long> branchIds = branches.stream().map(Branch::getId).toList();
+        Map<Long, BranchManager> mainByBranch = branchIds.isEmpty() ? Map.of()
+                : branchManagerRepository.findAllByBranchIdInAndIsDeletedFalse(branchIds).stream()
+                        .filter(mgr -> "주".equals(mgr.getManagerType()) && Boolean.TRUE.equals(mgr.getStatus()))
+                        .collect(Collectors.toMap(mgr -> mgr.getBranch().getId(), mgr -> mgr, (a, b) -> a));
+
+        List<BranchResponse> data = branches.stream().map(b -> {
             BranchResponse r = BranchResponse.from(b);
-            BranchManager main = branchManagerRepository.findAllByBranchIdAndIsDeletedFalse(b.getId()).stream()
-                    .filter(mgr -> "주".equals(mgr.getManagerType()) && Boolean.TRUE.equals(mgr.getStatus()))
-                    .findFirst().orElse(null);
+            BranchManager main = mainByBranch.get(b.getId());
             if (main != null) {
                 r.setMainManagerName(main.getManagerName());
                 r.setMainManagerContact(main.getContact());
@@ -53,6 +62,9 @@ public class BranchService {
 
     @Transactional
     public CommonResponse<BranchResponse> create(BranchUpsertRequest req) {
+        if (req.getBranchName() == null || req.getBranchName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "지점명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         Branch branch = Branch.builder()
                 .branchName(req.getBranchName())
                 .status(req.getStatus() != null ? req.getStatus() : true)
@@ -102,6 +114,12 @@ public class BranchService {
         if (req.getBranchId() == null) {
             throw new CustomException("BRANCH_ID_REQUIRED", "branchId는 필수입니다.");
         }
+        if (req.getManagerName() == null || req.getManagerName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "담당자명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (req.getContact() == null || req.getContact().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "담당자 연락처는 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         Branch branch = getBranch(req.getBranchId());
         BranchManager mgr = BranchManager.builder()
                 .branch(branch)
@@ -118,7 +136,7 @@ public class BranchService {
 
     @Transactional
     public CommonResponse<BranchManagerResponse> updateManager(Long id, BranchManagerUpsertRequest req) {
-        BranchManager m = branchManagerRepository.findById(id)
+        BranchManager m = branchManagerRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("BRANCH_MANAGER_NOT_FOUND", "담당자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         if (req.getManagerName() != null) m.setManagerName(req.getManagerName());
         if (req.getContact() != null) m.setContact(req.getContact());
@@ -130,7 +148,7 @@ public class BranchService {
 
     @Transactional
     public void deleteManager(Long id) {
-        BranchManager m = branchManagerRepository.findById(id)
+        BranchManager m = branchManagerRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new CustomException("BRANCH_MANAGER_NOT_FOUND", "담당자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         m.setIsDeleted(true);
     }

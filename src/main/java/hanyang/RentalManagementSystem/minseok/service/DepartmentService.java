@@ -56,6 +56,9 @@ public class DepartmentService {
 
     @Transactional
     public CommonResponse<DepartmentResponse> createDepartment(DepartmentUpsertRequest req) {
+        if (req.getDeptName() == null || req.getDeptName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "부서명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         Department d = Department.builder()
                 .deptName(req.getDeptName())
                 .createdDate(LocalDate.now())
@@ -108,6 +111,9 @@ public class DepartmentService {
     public CommonResponse<TeamResponse> createTeam(TeamUpsertRequest req) {
         if (req.getDepartmentId() == null) {
             throw new CustomException("DEPT_ID_REQUIRED", "departmentId는 필수입니다.");
+        }
+        if (req.getTeamName() == null || req.getTeamName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "팀명은 필수입니다.", HttpStatus.BAD_REQUEST);
         }
         Department dept = getDepartment(req.getDepartmentId());
         Team t = Team.builder()

@@ -58,6 +58,9 @@ public class ModelService {
 
     @Transactional
     public CommonResponse<ModelResponse> create(ModelUpsertRequest req) {
+        if (req.getModelName() == null || req.getModelName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "모델명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         Model model = Model.builder()
                 .modelName(req.getModelName())
                 .manufacturer(req.getManufacturer())

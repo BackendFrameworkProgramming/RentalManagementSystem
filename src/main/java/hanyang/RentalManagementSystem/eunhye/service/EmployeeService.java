@@ -43,6 +43,12 @@ public class EmployeeService {
         if (req.getTeamId() == null) {
             throw new CustomException("INVALID_REQUEST", "teamId는 필수입니다.", HttpStatus.BAD_REQUEST);
         }
+        if (req.getEmpName() == null || req.getEmpName().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "직원명은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (req.getEmpNo() == null || req.getEmpNo().isBlank()) {
+            throw new CustomException("INVALID_REQUEST", "사번은 필수입니다.", HttpStatus.BAD_REQUEST);
+        }
         Team team = teamRepository.findByIdAndIsDeletedFalse(req.getTeamId())
                 .orElseThrow(() -> new CustomException("TEAM_NOT_FOUND", "팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
