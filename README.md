@@ -11,6 +11,31 @@
 - MQTT (DrValue 라이브러리)
 - JWT 인증 (Access/Refresh Token) + 역할 기반 접근제어(RBAC)
 
+## 접근 권한 (RBAC) 및 데이터 스코핑
+
+로그인 주체는 센터 운영 측이며 역할 3종으로 구분한다. (디바이스 착용자/신청자는 로그인 주체가 아닌 관리 **데이터**)
+
+| 역할 | 권한 |
+|------|------|
+| ADMIN (관리자) | 운영 화면 8종 + 관리 화면(모델·공통코드·에러로그·설계이력 등) 전체 |
+| STAFF (운영자) | 운영 화면 8종 조회/관리 |
+| BRANCH_MANAGER (지점관리자) | 본인 지점 데이터만 (목록·요약·디바이스 등 전 영역 스코핑) |
+
+- 회원가입은 없고 **ADMIN이 운영자/지점관리자 계정을 생성**한다.
+- JWT에 역할·지점ID를 담아 서비스 계층(`SecurityUtil`)에서 본인 지점만 조회하도록 강제(IDOR 방어).
+
+## 코드 품질 (교수님 최종 코드리뷰 반영)
+
+교수님 최종 피드백 5종을 전 도메인에 반영했다.
+
+1. 페이징 후 필터 (전체 적재 금지)
+2. `findAll().stream()` 순회 → `exists` 쿼리로 대체
+3. 카운트는 엔티티 적재 없이 `count` 쿼리로
+4. `Map` 응답 → 요청/응답 DTO
+5. 문자열 상태값 → `Enum` (`@Enumerated(STRING)`)
+
+추가로 N+1은 `@EntityGraph`/JOIN FETCH·집계 쿼리로 방어하고, 막바지에 **팀 전체 코드 유지보수 점검**(N+1·동시성 race·소프트삭제 일관성·필수값 유효성)을 한 차례 더 수행했다.
+
 ## DB 접속 정보
 
 | 항목 | 값 |
@@ -98,8 +123,7 @@ JPA_SHOW_SQL=true ./gradlew bootRun
 
 > `:8083` 비표준 포트라 SSL Labs·Mozilla Observatory(443 전용)는 사용 불가 → 아래 3종으로 대체.
 
-각자 본인 도구를 실행하고 **표에서 본인 행만** 갱신(상태 `⬜ 예정` → `✅ 완료`, 결과 요약 기입)한 뒤
-커밋한다. 결과 화면 캡처는 제출물/노션에 첨부.
+3종 점검 모두 완료. 결과 화면 캡처는 제출물/노션에 첨부했다.
 
 | 도구 | 점검 항목 | 담당  | 상태   | 결과 요약                                                                                                   |
 |------|----------|-----|------|---------------------------------------------------------------------------------------------------------|
@@ -184,26 +208,14 @@ ssh root@101.79.16.88
 
 ### 서버에서 배포/갱신 절차
 
+앱은 PM2로 관리되며 nginx(8083 TLS)가 내부 앱(9083)으로 프록시한다.
+
 ```bash
-# 1. 프로젝트 디렉터리로 이동
 cd ~/team/team3/RentalManagementSystem
-
-# 2. 최신 코드 받기
 git pull origin main
-
-# 3. 빌드 (테스트 제외)
 ./gradlew clean build -x test
-
-# 4. 백그라운드로 실행 (SSH 종료 후에도 유지)
-nohup java -jar build/libs/RentalManagementSystem-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
-
-# 실행 확인
-ss -lntp | grep 8083      # 포트 점유 확인
-tail -f app.log           # 로그 확인 (Started ... 메시지 후 Ctrl+C로 빠져나오기)
-
-# 종료할 때
-ps -ef | grep RentalManagement   # PID 확인 후
-kill <PID>
+pm2 restart team_3      # 앱 재기동
+pm2 logs team_3         # 로그 확인 (Started ... 후 Ctrl+C)
 ```
 
 > **트러블슈팅** — `git pull` 시 `gradle-wrapper.jar would be overwritten` 에러가 나면,
@@ -221,12 +233,12 @@ kill <PID>
 
 ## 담당 배정
 
-| 담당 | 화면 | 패키지       |
-|------|------|-----------|
-| 윤태웅 (PM) | 화면1 디바이스 현황 + 모델 관리 + 화면6 센터정보 + 에러로그 + 공통코드 + 사용자 + MQTT | taewoong/ |
-| 팀원1 전민석 | 화면5 지점 관리 + 화면7 부서/팀 | minseok/  |
-| 팀원2 정은혜 | 화면8 센터 담당직원 + 화면3 생체정보/응급 | Eunhye/   |
-| 팀원3 김규민 | 화면2 임대 현황 + 화면4 AS 관리 | Gyumin/   |
+| 담당 | 화면 / 도메인 | 패키지 | 대표 기여 |
+|------|------|------|------|
+| 윤태웅 (PM) | 화면1 디바이스 + 모델 + 화면6 센터 + 에러로그 + 공통코드 + 사용자 + MQTT | taewoong/ | 공통구조·인증(JWT/RBAC)·배포(HTTPS)·전 도메인 리팩토링 |
+| 전민석 | 화면5 지점 + 화면7 부서/팀 | minseok/ | 부서삭제 exists화 · CryptCheck TLS A+ |
+| 정은혜 | 화면8 직원 + 화면3 생체/응급 | eunhye/ | 3N+1 집계쿼리 · 보안헤더 A · 팀 전체 유지보수 점검 |
+| 김규민 | 화면2 임대 + 화면4 AS | gyumin/ | AS 상태전이 가드 · Nikto 취약점 0건 |
 
 ## 프로젝트 구조
 
@@ -235,8 +247,8 @@ src/main/java/hanyang/RentalManagementSystem/
   common/           <- Entity, Repository, DTO, 공통 구조 (PM)
   taewoong/         <- 디바이스, 모델, 센터, 코드, 사용자, MQTT, 에러로그
   minseok/          <- 지점, 부서/팀 (전민석)
-  Eunhye/          <- 직원, 생체/응급 (정은혜)
-  Gyumin/          <- 임대, AS (김규민)
+  eunhye/           <- 직원, 생체/응급 (정은혜)
+  gyumin/           <- 임대, AS (김규민)
 
 src/main/resources/
   templates/        <- Thymeleaf HTML
@@ -246,8 +258,9 @@ src/main/resources/
 
 ## Git 규칙
 
-- 본인 폴더(minseok, Eunhye, Gyumin)에서만 작업
-- common/ 폴더 수정 금지
+- PM이 `common/`(공통 구조)을 단일 관리 → 머지 충돌 방지
+- 팀원은 본인 폴더(minseok, eunhye, gyumin)에서 작업
+- 후반 공통/레포지토리 수정이 필요하면 톡방에서 점유 확인 후 진행
 - 작업 전 pull, 작업 후 commit -> pull -> push
 
 ```
@@ -259,6 +272,22 @@ git push origin main
 ```
 
 ## 변경 이력
+
+### 2026-06-15 — 팀 전체 코드 유지보수 점검 (정은혜)
+
+- **N+1 제거**: 생체정보 목록 3N+1(`@EntityGraph` + 응급기록 묶음조회), 지점 목록 N+1(담당자 `IN` 묶음조회)
+- **회원가입 동시성 race 방어**: `existsBy`~`save` 사이 유니크 위반을 `try-catch(saveAndFlush)`로 409 처리 (교수님 ③)
+- **소프트삭제 일관성**: `findById` → `findByIdAndIsDeletedFalse` (지점담당자/임대/AS/생체)
+- **필수값 유효성 보강**: 모델·공통코드·지점·부서팀·직원·생체 생성 검증 추가 (교수님 ⑤)
+
+### 2026-06-13 — 지점관리자 데이터 스코핑 완성
+
+- BRANCH_MANAGER는 목록·디바이스·좌측 '지점별 요약' 패널까지 **본인 지점만** 조회
+
+### 2026-06-12 — 역할 모델 정립 + 전 도메인 리팩토링 (교수님 최종 피드백)
+
+- 역할 ADMIN/STAFF/BRANCH_MANAGER 확정, 사용자 관리(생성/수정) 기능 추가
+- 교수님 최종 코드리뷰 5종(페이징·exists·count·DTO·Enum)을 전 도메인 반영, N+1 `@EntityGraph` 방어
 
 ### 2026-06-10 — 보안 HTTP 응답 헤더 적용 (securityheaders.com 대응)
 
