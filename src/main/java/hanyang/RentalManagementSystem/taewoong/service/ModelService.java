@@ -33,6 +33,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -46,6 +47,11 @@ public class ModelService {
 
     @Value("${file.upload-dir}")
     private String uploadDir;
+
+    // 매뉴얼 업로드 허용 확장자 화이트리스트 (실행 가능 파일 .exe/.jsp/.sh 등 차단 — 보안)
+    private static final Set<String> ALLOWED_MANUAL_EXT = Set.of(
+            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "hwp", "txt",
+            "png", "jpg", "jpeg", "gif", "zip");
 
     public CommonResponse<List<ModelResponse>> findAll(CommonSearchRequest request) {
         Page<Model> page = modelRepository.findAll(request.toPageable());
@@ -122,6 +128,7 @@ public class ModelService {
     public CommonResponse<FileUploadResponse> uploadManual(Long id, MultipartFile file) {
         ModelVersion mv = getModelVersion(id);
         String originalName = file.getOriginalFilename();
+        validateUploadExtension(originalName);
         String savedName = UUID.randomUUID() + "_" + originalName;
         try {
             Path dir = Paths.get(uploadDir);
@@ -159,7 +166,23 @@ public class ModelService {
     }
 
     private ModelVersion getModelVersion(Long id) {
+        // soft-delete된 버전이 update/업로드로 부활하지 않도록 isDeleted 필터
         return modelVersionRepository.findById(id)
+                .filter(mv -> !Boolean.TRUE.equals(mv.getIsDeleted()))
                 .orElseThrow(() -> new CustomException("MODEL_VERSION_NOT_FOUND", "모델버전을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+    }
+
+    // 업로드 파일 확장자 화이트리스트 검증 (실행 가능 파일 차단)
+    private void validateUploadExtension(String originalName) {
+        if (originalName == null || originalName.isBlank()) {
+            throw new CustomException("INVALID_FILE", "파일 이름이 올바르지 않습니다.", HttpStatus.BAD_REQUEST);
+        }
+        int dot = originalName.lastIndexOf('.');
+        String ext = dot >= 0 ? originalName.substring(dot + 1).toLowerCase() : "";
+        if (!ALLOWED_MANUAL_EXT.contains(ext)) {
+            throw new CustomException("UNSUPPORTED_FILE_TYPE",
+                    "허용되지 않은 파일 형식입니다. (허용: " + String.join(", ", ALLOWED_MANUAL_EXT) + ")",
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 }
