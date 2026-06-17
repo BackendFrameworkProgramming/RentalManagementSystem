@@ -127,9 +127,11 @@ public class ModelService {
     @Transactional
     public CommonResponse<FileUploadResponse> uploadManual(Long id, MultipartFile file) {
         ModelVersion mv = getModelVersion(id);
+        // Path traversal 방어: 파일명에서 디렉터리 경로 요소(../, 절대경로 등) 제거 → basename만 사용
         String originalName = file.getOriginalFilename();
-        validateUploadExtension(originalName);
-        String savedName = UUID.randomUUID() + "_" + originalName;
+        String safeName = (originalName == null) ? null : originalName.replaceAll("^.*[\\\\/]", "");
+        validateUploadExtension(safeName);
+        String savedName = UUID.randomUUID() + "_" + safeName;
         try {
             Path dir = Paths.get(uploadDir);
             if (!Files.exists(dir)) Files.createDirectories(dir);
@@ -137,10 +139,10 @@ public class ModelService {
         } catch (IOException e) {
             throw new CustomException("FILE_UPLOAD_FAILED", "파일 업로드 실패: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        mv.setManualFileName(originalName);
+        mv.setManualFileName(safeName);
         mv.setManualPath(savedName);
         return CommonResponse.created(FileUploadResponse.builder()
-                .savedFileName(savedName).originalFileName(originalName).build());
+                .savedFileName(savedName).originalFileName(safeName).build());
     }
 
     public ResponseEntity<byte[]> downloadManual(Long id) {
