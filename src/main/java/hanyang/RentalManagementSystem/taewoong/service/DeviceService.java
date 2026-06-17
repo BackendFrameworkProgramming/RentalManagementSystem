@@ -21,6 +21,7 @@ import hanyang.RentalManagementSystem.taewoong.dto.DeviceResponse;
 import hanyang.RentalManagementSystem.taewoong.dto.DeviceSummaryResponse;
 import hanyang.RentalManagementSystem.taewoong.dto.DeviceUpdateRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -67,6 +68,10 @@ public class DeviceService {
         if (req.getModelVersionId() == null) {
             throw new CustomException("INVALID_REQUEST", "modelVersionId는 필수입니다.", HttpStatus.BAD_REQUEST);
         }
+        // 디바이스ID 중복 사전 체크 (device_id는 unique 제약)
+        if (deviceRepository.existsByDeviceIdAndIsDeletedFalse(req.getDeviceId())) {
+            throw new CustomException("DUPLICATE_DEVICE_ID", "이미 등록된 디바이스 ID입니다.", HttpStatus.CONFLICT);
+        }
         ModelVersion mv = modelVersionRepository.findById(req.getModelVersionId())
                 .orElseThrow(() -> new CustomException("MODEL_VERSION_NOT_FOUND", "모델버전을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
@@ -87,7 +92,12 @@ public class DeviceService {
             device.setStatus(DeviceStatus.RENTAL_READY);
             device.setBranchSendDate(LocalDate.now());
         }
-        deviceRepository.save(device);
+        // 동시성 방어: 사전 체크~저장 사이 race로 같은 ID가 먼저 들어오면 unique 제약 위반 → 깔끔한 메시지로 변환
+        try {
+            deviceRepository.saveAndFlush(device);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException("DUPLICATE_DEVICE_ID", "이미 등록된 디바이스 ID입니다.", HttpStatus.CONFLICT);
+        }
         return CommonResponse.created(DeviceResponse.from(device));
     }
 

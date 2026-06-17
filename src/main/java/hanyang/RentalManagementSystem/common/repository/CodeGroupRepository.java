@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CodeGroupRepository extends JpaRepository<CodeGroup, Long> {
+    boolean existsByGroupCode(String groupCode);
 }

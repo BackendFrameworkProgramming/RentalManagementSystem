@@ -11,6 +11,7 @@ import hanyang.RentalManagementSystem.taewoong.dto.CodeDetailUpsertRequest;
 import hanyang.RentalManagementSystem.taewoong.dto.CodeGroupResponse;
 import hanyang.RentalManagementSystem.taewoong.dto.CodeGroupUpsertRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,13 +48,22 @@ public class CommonCodeService {
         if (req.getGroupName() == null || req.getGroupName().isBlank()) {
             throw new CustomException("INVALID_REQUEST", "그룹명은 필수입니다.", HttpStatus.BAD_REQUEST);
         }
+        // 그룹코드 중복 사전 체크 (group_code는 unique 제약)
+        if (groupRepo.existsByGroupCode(req.getGroupCode())) {
+            throw new CustomException("DUPLICATE_GROUP_CODE", "이미 존재하는 그룹코드입니다.", HttpStatus.CONFLICT);
+        }
         CodeGroup group = CodeGroup.builder()
                 .groupCode(req.getGroupCode())
                 .groupName(req.getGroupName())
                 .description(req.getDescription())
                 .useYn(req.getUseYn() != null ? req.getUseYn() : true)
                 .build();
-        groupRepo.save(group);
+        // 동시성 방어: 사전 체크~저장 사이 race로 같은 코드가 먼저 들어오면 unique 제약 위반 → 깔끔한 메시지로 변환
+        try {
+            groupRepo.saveAndFlush(group);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException("DUPLICATE_GROUP_CODE", "이미 존재하는 그룹코드입니다.", HttpStatus.CONFLICT);
+        }
         return CommonResponse.created(CodeGroupResponse.from(group));
     }
 
