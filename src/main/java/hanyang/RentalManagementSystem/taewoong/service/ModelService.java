@@ -131,7 +131,11 @@ public class ModelService {
         String originalName = file.getOriginalFilename();
         String safeName = (originalName == null) ? null : originalName.replaceAll("^.*[\\\\/]", "");
         validateUploadExtension(safeName);
-        String savedName = UUID.randomUUID() + "_" + safeName;
+        // 저장 파일명은 UUID + 확장자만 사용(사용자 입력 파일명을 경로에 남기지 않음). 원본명은 manualFileName에 별도 보관.
+        String ext = "";
+        int dot = safeName.lastIndexOf('.');
+        if (dot >= 0) ext = safeName.substring(dot);
+        String savedName = UUID.randomUUID() + ext;
         try {
             Path dir = Paths.get(uploadDir);
             if (!Files.exists(dir)) Files.createDirectories(dir);
@@ -159,7 +163,7 @@ public class ModelService {
             }
             byte[] data = Files.readAllBytes(path);
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentDisposition(ContentDisposition.attachment().filename(mv.getManualFileName()).build());
+            headers.setContentDisposition(ContentDisposition.attachment().filename(sanitizeHeaderFilename(mv.getManualFileName())).build());
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
             return new ResponseEntity<>(data, headers, HttpStatus.OK);
         } catch (IOException e) {
@@ -177,6 +181,13 @@ public class ModelService {
         return modelVersionRepository.findById(id)
                 .filter(mv -> !Boolean.TRUE.equals(mv.getIsDeleted()))
                 .orElseThrow(() -> new CustomException("MODEL_VERSION_NOT_FOUND", "모델버전을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+    }
+
+    // Content-Disposition 헤더용 파일명 정제 (CRLF/제어문자 제거 → 헤더 인젝션 방지)
+    private String sanitizeHeaderFilename(String name) {
+        if (name == null || name.isBlank()) return "manual.bin";
+        String s = name.replaceAll("[\\r\\n]", "").replaceAll("\\p{Cntrl}", "").replace("\"", "_").trim();
+        return s.isEmpty() ? "manual.bin" : s;
     }
 
     // 업로드 파일 확장자 화이트리스트 검증 (실행 가능 파일 차단)

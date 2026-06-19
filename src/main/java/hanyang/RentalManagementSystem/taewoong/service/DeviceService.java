@@ -27,15 +27,29 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import hanyang.RentalManagementSystem.taewoong.dto.BatchResultResponse;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DeviceService {
+
+    // 디바이스 상태 전이 규칙(불변). 매 호출 재생성 방지 위해 static final로 1회만 구성.
+    private static final Map<DeviceStatus, List<DeviceStatus>> ALLOWED_STATUS_TRANSITIONS = Map.of(
+            DeviceStatus.INCOMING, List.of(DeviceStatus.RENTAL_READY),
+            DeviceStatus.RENTAL_READY, List.of(DeviceStatus.RENTING, DeviceStatus.AS_RECEIVED, DeviceStatus.INCOMING),
+            DeviceStatus.RENTING, List.of(DeviceStatus.RENTAL_READY, DeviceStatus.AS_RECEIVED),
+            DeviceStatus.AS_RECEIVED, List.of(DeviceStatus.AS_PROGRESS, DeviceStatus.RENTAL_READY, DeviceStatus.DISPOSED),
+            DeviceStatus.AS_PROGRESS, List.of(DeviceStatus.RENTAL_READY, DeviceStatus.DISPOSED),
+            DeviceStatus.RETURNED, List.of(DeviceStatus.INCOMING),
+            DeviceStatus.DISPOSED, List.of()
+    );
 
     private final DeviceRepository deviceRepository;
     private final ModelVersionRepository modelVersionRepository;
@@ -168,7 +182,7 @@ public class DeviceService {
 
     // 1-8 지점 연결(다중)
     @Transactional
-    public CommonResponse<Map<String, Object>> batchLinkBranch(List<Long> deviceIds, Long branchId) {
+    public CommonResponse<BatchResultResponse> batchLinkBranch(List<Long> deviceIds, Long branchId) {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new CustomException("BRANCH_NOT_FOUND", "지점을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         List<ErrorInfo.BatchErrorDetail> errors = new ArrayList<>();
@@ -184,9 +198,13 @@ public class DeviceService {
             }
         }
         if (!errors.isEmpty()) {
-            throw new CustomException("BATCH_PARTIAL_FAILURE", errors.size() + "건 처리 실패. 전체 롤백됨.");
+            String detail = errors.stream()
+                    .map(e -> e.getTargetId() + ":" + e.getReason())
+                    .collect(Collectors.joining(", "));
+            throw new CustomException("BATCH_PARTIAL_FAILURE",
+                    errors.size() + "건 처리 실패. 전체 롤백됨. details=[" + detail + "]");
         }
-        return CommonResponse.success(Map.of("updatedCount", deviceIds.size()));
+        return CommonResponse.success(BatchResultResponse.builder().updatedCount(deviceIds.size()).build());
     }
 
     // 1-9 지점 해제(단건)
@@ -201,7 +219,7 @@ public class DeviceService {
 
     // 1-10 지점 해제(다중)
     @Transactional
-    public CommonResponse<Map<String, Object>> batchUnlinkBranch(List<Long> deviceIds) {
+    public CommonResponse<BatchResultResponse> batchUnlinkBranch(List<Long> deviceIds) {
         List<ErrorInfo.BatchErrorDetail> errors = new ArrayList<>();
         for (Long did : deviceIds) {
             try {
@@ -215,9 +233,13 @@ public class DeviceService {
             }
         }
         if (!errors.isEmpty()) {
-            throw new CustomException("BATCH_PARTIAL_FAILURE", errors.size() + "건 처리 실패. 전체 롤백됨.");
+            String detail = errors.stream()
+                    .map(e -> e.getTargetId() + ":" + e.getReason())
+                    .collect(Collectors.joining(", "));
+            throw new CustomException("BATCH_PARTIAL_FAILURE",
+                    errors.size() + "건 처리 실패. 전체 롤백됨. details=[" + detail + "]");
         }
-        return CommonResponse.success(Map.of("updatedCount", deviceIds.size()));
+        return CommonResponse.success(BatchResultResponse.builder().updatedCount(deviceIds.size()).build());
     }
 
     // 1-11 집계 (교수님 #3: 전체 엔티티 로드 대신 count/group-by 쿼리)
@@ -264,16 +286,7 @@ public class DeviceService {
     }
 
     private void validateStatusTransition(DeviceStatus current, DeviceStatus next) {
-        Map<DeviceStatus, List<DeviceStatus>> allowed = Map.of(
-                DeviceStatus.INCOMING, List.of(DeviceStatus.RENTAL_READY),
-                DeviceStatus.RENTAL_READY, List.of(DeviceStatus.RENTING, DeviceStatus.AS_RECEIVED, DeviceStatus.INCOMING),
-                DeviceStatus.RENTING, List.of(DeviceStatus.RENTAL_READY, DeviceStatus.AS_RECEIVED),
-                DeviceStatus.AS_RECEIVED, List.of(DeviceStatus.AS_PROGRESS, DeviceStatus.RENTAL_READY, DeviceStatus.DISPOSED),
-                DeviceStatus.AS_PROGRESS, List.of(DeviceStatus.RENTAL_READY, DeviceStatus.DISPOSED),
-                DeviceStatus.RETURNED, List.of(DeviceStatus.INCOMING),
-                DeviceStatus.DISPOSED, List.of()
-        );
-        List<DeviceStatus> validNext = allowed.getOrDefault(current, List.of());
+        List<DeviceStatus> validNext = ALLOWED_STATUS_TRANSITIONS.getOrDefault(current, List.of());
         if (!validNext.contains(next)) {
             throw new CustomException("INVALID_STATUS_TRANSITION", current + " → " + next + " 전이는 허용되지 않습니다.");
         }

@@ -4,6 +4,7 @@ import hanyang.RentalManagementSystem.common.dto.CommonResponse;
 import hanyang.RentalManagementSystem.common.dto.CommonSearchRequest;
 import hanyang.RentalManagementSystem.taewoong.dto.BatchBranchLinkRequest;
 import hanyang.RentalManagementSystem.taewoong.dto.BatchDeviceIdsRequest;
+import hanyang.RentalManagementSystem.taewoong.dto.BatchResultResponse;
 import hanyang.RentalManagementSystem.taewoong.dto.BranchLinkRequest;
 import hanyang.RentalManagementSystem.taewoong.dto.DeviceAsHistoryResponse;
 import hanyang.RentalManagementSystem.taewoong.dto.DeviceCreateRequest;
@@ -72,7 +73,7 @@ public class DeviceController {
     }
 
     @PatchMapping("/batch/branch")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> batchLinkBranch(@RequestBody BatchBranchLinkRequest request) {
+    public ResponseEntity<CommonResponse<BatchResultResponse>> batchLinkBranch(@RequestBody BatchBranchLinkRequest request) {
         return ResponseEntity.ok(deviceService.batchLinkBranch(request.getDeviceIds(), request.getBranchId()));
     }
 
@@ -83,7 +84,7 @@ public class DeviceController {
     }
 
     @PatchMapping("/batch/branch-release")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> batchUnlinkBranch(@RequestBody BatchDeviceIdsRequest request) {
+    public ResponseEntity<CommonResponse<BatchResultResponse>> batchUnlinkBranch(@RequestBody BatchDeviceIdsRequest request) {
         return ResponseEntity.ok(deviceService.batchUnlinkBranch(request.getDeviceIds()));
     }
 
