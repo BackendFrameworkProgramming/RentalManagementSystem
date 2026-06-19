@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<CommonResponse<Void>> handleCustomException(
             CustomException e, HttpServletRequest request) {
-        log.warn("[{}] {} - {}", e.getCode(), e.getMessage(), request.getRequestURI());
+        log.warn("[{}] {} - {}", e.getCode(), clean(e.getMessage()), clean(request.getRequestURI()));
         saveErrorLog(e.getCode(), e.getMessage(), request, e);
         return ResponseEntity.status(e.getHttpStatus())
                 .body(CommonResponse.error(e.getCode(), e.getMessage()));
@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.error("NOT_FOUND", "페이지를 찾을 수 없습니다."));
         }
-        log.error("Unhandled exception: {} - {}", e.getMessage(), request.getRequestURI(), e);
+        log.error("Unhandled exception: {} - {}", clean(e.getMessage()), clean(request.getRequestURI()), e);
         saveErrorLog("INTERNAL_SERVER_ERROR", e.getMessage(), request, e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CommonResponse.error("INTERNAL_SERVER_ERROR", "서버 내부 오류가 발생했습니다."));
@@ -55,6 +55,11 @@ public class GlobalExceptionHandler {
         } catch (Exception ex) {
             log.error("Failed to save error log", ex);
         }
+    }
+
+    // Log Injection 방어: 사용자 입력의 개행(CRLF)을 제거해 로그 위조 차단
+    private String clean(String s) {
+        return s == null ? null : s.replaceAll("[\\r\\n]", "_");
     }
 
     private String getStackTrace(Exception e) {

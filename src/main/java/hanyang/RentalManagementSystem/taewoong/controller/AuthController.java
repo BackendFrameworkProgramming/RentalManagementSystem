@@ -11,7 +11,9 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -64,31 +66,25 @@ public class AuthController {
     }
 
     private void setCookies(HttpServletResponse response, AuthTokenResponse tokens) {
-        Cookie access = new Cookie("access_token", tokens.getAccessToken());
-        access.setHttpOnly(true);
-        access.setPath("/");
-        access.setMaxAge(86400);
-        response.addCookie(access);
-
-        Cookie refresh = new Cookie("refresh_token", tokens.getRefreshToken());
-        refresh.setHttpOnly(true);
-        refresh.setPath("/api/auth");
-        refresh.setMaxAge(604800);
-        response.addCookie(refresh);
+        addAuthCookie(response, "access_token", tokens.getAccessToken(), "/", 86400);
+        addAuthCookie(response, "refresh_token", tokens.getRefreshToken(), "/api/auth", 604800);
     }
 
     private void clearCookies(HttpServletResponse response) {
-        Cookie access = new Cookie("access_token", "");
-        access.setHttpOnly(true);
-        access.setPath("/");
-        access.setMaxAge(0);
-        response.addCookie(access);
+        addAuthCookie(response, "access_token", "", "/", 0);
+        addAuthCookie(response, "refresh_token", "", "/api/auth", 0);
+    }
 
-        Cookie refresh = new Cookie("refresh_token", "");
-        refresh.setHttpOnly(true);
-        refresh.setPath("/api/auth");
-        refresh.setMaxAge(0);
-        response.addCookie(refresh);
+    // 보안 쿠키: HttpOnly(JS 접근 차단) + Secure(HTTPS 전용 전송) + SameSite=Strict(CSRF 방어)
+    private void addAuthCookie(HttpServletResponse response, String name, String value, String path, long maxAge) {
+        ResponseCookie cookie = ResponseCookie.from(name, value)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path(path)
+                .maxAge(maxAge)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     private String getCookieValue(HttpServletRequest request, String name) {

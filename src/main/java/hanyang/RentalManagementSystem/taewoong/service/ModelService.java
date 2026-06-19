@@ -151,7 +151,12 @@ public class ModelService {
             throw new CustomException("FILE_NOT_FOUND", "매뉴얼 파일이 없습니다.", HttpStatus.NOT_FOUND);
         }
         try {
-            Path path = Paths.get(uploadDir).resolve(mv.getManualPath());
+            // Path Traversal 방어: 해석된 경로가 업로드 디렉터리 밖이면 거부
+            Path base = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path path = base.resolve(mv.getManualPath()).normalize();
+            if (!path.startsWith(base)) {
+                throw new CustomException("FILE_NOT_FOUND", "매뉴얼 파일이 없습니다.", HttpStatus.NOT_FOUND);
+            }
             byte[] data = Files.readAllBytes(path);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentDisposition(ContentDisposition.attachment().filename(mv.getManualFileName()).build());

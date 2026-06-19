@@ -27,6 +27,9 @@ public class CommonSearchRequest {
         Sort sort = "ASC".equalsIgnoreCase(orderType)
                 ? Sort.by(Sort.Direction.ASC, orderField)
                 : Sort.by(Sort.Direction.DESC, orderField);
-        return PageRequest.of(Math.max(0, page - 1), size, sort);
+        // 사용자 입력 page/size를 안전 범위로 제한(정수 오버플로·과도한 요청 방어)
+        int safePage = (page == null || page < 1) ? 1 : Math.min(page, 100_000);
+        int safeSize = (size == null || size < 1) ? 20 : Math.min(size, 200);
+        return PageRequest.of(safePage - 1, safeSize, sort);
     }
 }
