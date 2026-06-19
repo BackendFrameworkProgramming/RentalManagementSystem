@@ -16,6 +16,9 @@ public class Model extends BaseEntity {
     private String manufacturer;
     @Column(columnDefinition = "TEXT")
     private String description;
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private Boolean isDeleted = false;
     @OneToMany(mappedBy = "model", fetch = FetchType.LAZY)
     @Builder.Default
     private List<ModelVersion> versions = new ArrayList<>();

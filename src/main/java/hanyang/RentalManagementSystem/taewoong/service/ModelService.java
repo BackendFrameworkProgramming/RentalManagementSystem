@@ -52,9 +52,12 @@ public class ModelService {
     private static final Set<String> ALLOWED_MANUAL_EXT = Set.of(
             "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "hwp", "txt",
             "png", "jpg", "jpeg", "gif", "zip");
+    // 파일명에서 앞쪽 디렉터리 경로(/, \)를 제거해 경로 탈출(../)을 차단. (Paths.getFileName은 OS별로 \ 처리가 달라 정규식 사용)
+    private static final String LEADING_PATH_REGEX = "^.*[\\\\/]";
+    private static final String DEFAULT_MANUAL_FILENAME = "manual.bin";
 
     public CommonResponse<List<ModelResponse>> findAll(CommonSearchRequest request) {
-        Page<Model> page = modelRepository.findAll(request.toPageable());
+        Page<Model> page = modelRepository.findAllByIsDeletedFalse(request.toPageable());
         return CommonResponse.success(page.getContent().stream().map(ModelResponse::from).toList(), Pagination.of(page));
     }
 
@@ -87,8 +90,9 @@ public class ModelService {
 
     @Transactional
     public void delete(Long id) {
-        // Cascade: 하위 버전도 soft delete
-        getModel(id).getVersions().forEach(v -> v.setIsDeleted(true));
+        Model model = getModel(id);
+        model.getVersions().forEach(v -> v.setIsDeleted(true)); // Cascade: 하위 버전도 soft delete
+        model.setIsDeleted(true);
     }
 
     @Transactional
@@ -129,7 +133,10 @@ public class ModelService {
         ModelVersion mv = getModelVersion(id);
         // Path traversal 방어: 파일명에서 디렉터리 경로 요소(../, 절대경로 등) 제거 → basename만 사용
         String originalName = file.getOriginalFilename();
-        String safeName = (originalName == null) ? null : originalName.replaceAll("^.*[\\\\/]", "");
+        String safeName = (originalName == null) ? null : originalName.replaceAll(LEADING_PATH_REGEX, "");
+        if (safeName == null || safeName.isBlank()) {
+            throw new CustomException("INVALID_FILE_NAME", "유효한 파일명이 필요합니다.", HttpStatus.BAD_REQUEST);
+        }
         validateUploadExtension(safeName);
         // 저장 파일명은 UUID + 확장자만 사용(사용자 입력 파일명을 경로에 남기지 않음). 원본명은 manualFileName에 별도 보관.
         String ext = "";
@@ -185,9 +192,9 @@ public class ModelService {
 
     // Content-Disposition 헤더용 파일명 정제 (CRLF/제어문자 제거 → 헤더 인젝션 방지)
     private String sanitizeHeaderFilename(String name) {
-        if (name == null || name.isBlank()) return "manual.bin";
+        if (name == null || name.isBlank()) return DEFAULT_MANUAL_FILENAME;
         String s = name.replaceAll("[\\r\\n]", "").replaceAll("\\p{Cntrl}", "").replace("\"", "_").trim();
-        return s.isEmpty() ? "manual.bin" : s;
+        return s.isEmpty() ? DEFAULT_MANUAL_FILENAME : s;
     }
 
     // 업로드 파일 확장자 화이트리스트 검증 (실행 가능 파일 차단)
