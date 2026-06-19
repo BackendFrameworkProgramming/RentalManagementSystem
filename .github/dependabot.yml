@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # 의존성(Gradle) 취약점/업데이트 PR 자동 생성
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions 워크플로 액션 버전 업데이트
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
