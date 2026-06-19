@@ -62,7 +62,12 @@ public class JwtTokenProvider {
     }
 
     public Long getUserId(String token) {
-        return Long.valueOf(parseClaims(token).getSubject());
+        try {
+            return Long.valueOf(parseClaims(token).getSubject());
+        } catch (NumberFormatException e) {
+            // 변조/비정상 토큰: subject가 숫자가 아니면 유효하지 않은 토큰으로 처리
+            throw new JwtException("Invalid token subject");
+        }
     }
 
     public String getRole(String token) {

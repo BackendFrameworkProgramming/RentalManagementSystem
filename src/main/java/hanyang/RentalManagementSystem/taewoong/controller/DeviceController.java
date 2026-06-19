@@ -61,8 +61,8 @@ public class DeviceController {
 
     @GetMapping("/{id}/as-records")
     public ResponseEntity<CommonResponse<List<DeviceAsHistoryResponse>>> asHistory(
-            @PathVariable Long id, CommonSearchRequest request) {
-        return ResponseEntity.ok(deviceService.findAsRecordsByDeviceId(id, request));
+            @PathVariable Long id) {
+        return ResponseEntity.ok(deviceService.findAsRecordsByDeviceId(id));
     }
 
     @PatchMapping("/{id}/branch")

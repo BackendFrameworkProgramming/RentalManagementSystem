@@ -147,7 +147,7 @@ public class DeviceService {
     }
 
     // 1-6 AS 이력 (@EntityGraph로 N+1 방어 / DTO)
-    public CommonResponse<List<DeviceAsHistoryResponse>> findAsRecordsByDeviceId(Long deviceId, CommonSearchRequest request) {
+    public CommonResponse<List<DeviceAsHistoryResponse>> findAsRecordsByDeviceId(Long deviceId) {
         List<DeviceAsHistoryResponse> data = asRecordRepository.findAllByDeviceIdAndIsDeletedFalse(deviceId)
                 .stream().map(DeviceAsHistoryResponse::from).toList();
         return CommonResponse.success(data);

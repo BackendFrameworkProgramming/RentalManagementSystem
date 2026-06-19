@@ -10,6 +10,7 @@ import java.util.List;
 
 @Repository
 public interface EmergencyRecordRepository extends JpaRepository<EmergencyRecord, Long> {
+    @Override
     Page<EmergencyRecord> findAll(Pageable pageable);
     List<EmergencyRecord> findAllByBiometricDataId(Long biometricDataId);
 
